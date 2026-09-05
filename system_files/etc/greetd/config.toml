@@ -1,0 +1,15 @@
+# greetd + tuigreet.
+#
+# tuigreet is a pure-TTY ncurses greeter: no compositor, no GPU driver
+# involvement. That matters on this box — sddm-wayland-sway runs its greeter as
+# a real Sway instance and would hit the same NVIDIA guard the session does,
+# and plasmalogin requires kwin-wayland so it cannot outlive Plasma.
+
+[terminal]
+vt = 1
+
+[default_session]
+# --sessions is Wayland-only; X11 sessions go through --xsessions so tuigreet
+# wraps them in startx. F3 opens the session menu, F2 the command menu.
+command = "tuigreet --time --remember --remember-user-session --asterisks --kb-sessions 3 --sessions /usr/share/wayland-sessions --xsessions /usr/share/xsessions --cmd start-sway"
+user = "greetd"

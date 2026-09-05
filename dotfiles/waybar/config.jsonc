@@ -1,0 +1,78 @@
+// -*- mode: jsonc -*-
+//
+// Minimal waybar. Replaces /etc/xdg/waybar/config.jsonc wholesale -- waybar
+// picks the first config it finds and does NOT merge, so this file has to be
+// complete rather than a set of overrides.
+//
+// Trimmed from the stock module list. Dropped as not applicable to a desktop
+// or as noise: battery, backlight, sway/language, sway/scratchpad,
+// power-profiles-daemon, idle_inhibitor. Add any of them back to
+// "modules-right" if you want them; their stock config blocks are in
+// /etc/xdg/waybar/config.jsonc.
+{
+    "layer": "top",
+    "position": "top",
+
+    // 30 -> 24. Combined with the 11px font and the 1px bottom border
+    // (style.css) this is noticeably thinner than stock.
+    "height": 24,
+    "spacing": 2,
+
+    "modules-left": ["sway/workspaces", "sway/mode"],
+    "modules-center": ["sway/window"],
+    "modules-right": ["pulseaudio", "network", "cpu", "memory", "temperature", "clock", "tray"],
+
+    "sway/workspaces": {
+        "disable-scroll": true,
+        "format": "{name}"
+    },
+
+    "sway/mode": {
+        "format": "{}"
+    },
+
+    "sway/window": {
+        "max-length": 90,
+        "separate-outputs": true,
+        // Blank rather than the app name when a workspace is empty.
+        "format": "{title}"
+    },
+
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-muted": "muted",
+        "format-icons": { "headphone": "", "headset": "", "default": ["", "", ""] },
+        "on-click": "pavucontrol"
+    },
+
+    // The stock config prints the full {ipaddr}/{cidr} inline, which is most of
+    // the clutter on the right-hand side. Icon only; details in the tooltip.
+    "network": {
+        "format-wifi": "",
+        "format-ethernet": "",
+        "format-linked": "",
+        "format-disconnected": "",
+        "tooltip-format": "{ifname}  {ipaddr}/{cidr}  via {gwaddr}",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ifname}  {ipaddr}/{cidr}"
+    },
+
+    "cpu":    { "format": "cpu {usage}%", "interval": 5, "tooltip": false },
+    "memory": { "format": "mem {percentage}%", "interval": 5 },
+
+    "temperature": {
+        "critical-threshold": 80,
+        "format": "{temperatureC}°",
+        "interval": 5
+    },
+
+    "clock": {
+        "format": "{:%H:%M}",
+        "format-alt": "{:%a %Y-%m-%d  %H:%M}",
+        "tooltip-format": "<tt>{calendar}</tt>"
+    },
+
+    "tray": {
+        "icon-size": 16,
+        "spacing": 8
+    }
+}

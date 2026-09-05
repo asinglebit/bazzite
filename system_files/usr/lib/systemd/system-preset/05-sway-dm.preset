@@ -1,0 +1,7 @@
+# Sorts before 85-display-manager.preset, which enables gdm, sddm AND
+# plasmalogin together and leaves the winner to installation order.
+# systemd applies the first matching preset rule, so these win.
+enable greetd.service
+disable plasmalogin.service
+disable sddm.service
+disable gdm.service
