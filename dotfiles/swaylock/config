@@ -1,0 +1,88 @@
+# Greyscale lock screen.
+#
+# Replaces /etc/swaylock/config wholesale -- swaylock loads the FIRST config it
+# finds (~/.config/swaylock/config, then /etc/swaylock/config) and does not
+# merge, so this file has to be complete. The system default it replaces was:
+#
+#     image=/usr/share/backgrounds/default.jxl
+#     scaling=fill
+#
+# i.e. the same wallpaper 20-appearance.conf just removed from the desktop.
+# Dropping the image key is what makes `color` below take effect.
+#
+# 90-swayidle.conf invokes plain `swaylock -f` with no colour arguments, so
+# everything here applies to the idle timeout, before-sleep, and
+# `loginctl lock-session` alike.
+#
+# Validate after editing, without locking anything -- swaylock parses its
+# config before it connects to the compositor, so this reports config errors
+# and then exits harmlessly:
+#
+#     env -u WAYLAND_DISPLAY swaylock -C ~/.config/swaylock/config
+#
+# Palette matches the rest of the desktop:
+#   1a1a1a  background      (same as the waybar strip; the darkest surface)
+#   242424  indicator fill  (the desktop grey)
+#   2e2e2e  hairline
+#   5a5a5a  dim
+#   9a9a9a  base text
+#   d8d8d8  bright
+#   ffffff  alert -- greyscale has no red, so a failed password signals with
+#           maximum brightness instead
+
+color=1a1a1a
+
+font=Noto Sans Mono
+
+# Thinner and wider than the stock ring (default radius 50, thickness 10), to
+# match the 1px-hairline feel of the bar. Revert these two lines for a chunkier
+# indicator; they change only geometry, not colour.
+indicator-radius=90
+indicator-thickness=4
+
+# Show Caps Lock state on the ring itself, not only as text.
+indicator-caps-lock
+
+# --- idle / typing -----------------------------------------------------------
+inside-color=242424
+ring-color=5a5a5a
+line-color=1a1a1a
+text-color=9a9a9a
+
+# Per-keypress ring segments: bright for a keypress, dim for a backspace.
+key-hl-color=d8d8d8
+bs-hl-color=5a5a5a
+# Separators between those segments sit at background colour, so the ring reads
+# as one continuous arc rather than a dashed one.
+separator-color=1a1a1a
+
+# --- input cleared -----------------------------------------------------------
+inside-clear-color=242424
+ring-clear-color=9a9a9a
+line-clear-color=1a1a1a
+text-clear-color=d8d8d8
+
+# --- verifying ---------------------------------------------------------------
+inside-ver-color=242424
+ring-ver-color=d8d8d8
+line-ver-color=1a1a1a
+text-ver-color=d8d8d8
+
+# --- wrong password ----------------------------------------------------------
+inside-wrong-color=242424
+ring-wrong-color=ffffff
+line-wrong-color=1a1a1a
+text-wrong-color=ffffff
+
+# --- caps lock active --------------------------------------------------------
+inside-caps-lock-color=242424
+ring-caps-lock-color=d8d8d8
+line-caps-lock-color=1a1a1a
+text-caps-lock-color=d8d8d8
+caps-lock-key-hl-color=ffffff
+caps-lock-bs-hl-color=5a5a5a
+
+# --- keyboard layout box -----------------------------------------------------
+layout-bg-color=242424
+layout-border-color=2e2e2e
+layout-text-color=9a9a9a

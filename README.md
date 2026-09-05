@@ -38,7 +38,7 @@ If anything goes wrong: `just rollback`, or hold **Shift** at boot and pick the
 | `build_files/30-kde-remove.sh` | Plasma removal (only when `REMOVE_KDE=1`) |
 | `build_files/40-branding.sh` | os-release / image-info.json, disables `uupd.timer` |
 | `system_files/` | Files copied verbatim into the image |
-| `dotfiles/` | Per-user config (monitor layout, waybar), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. |
+| `dotfiles/` | Per-user config (monitor layout, appearance, theming, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. |
 | `verify.sh` | Post-boot checks |
 
 ## Things that are load-bearing, and why
