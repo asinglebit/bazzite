@@ -154,7 +154,7 @@ containers-storage ref it brands itself with matches that reality.
 | `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push to GHCR, cosign sign |
 | `cosign.pub` | Public half of the CI signing key. Committed on purpose; `cosign.key` never is |
 | `system_files/` | Files copied verbatim into the image |
-| `dotfiles/` | Per-user config (monitor layout, appearance, theming, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. |
+| `dotfiles/` | Per-user config (monitor layout, appearance, theming, launcher, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. |
 | `verify.sh` | Post-boot checks |
 
 ## Things that are load-bearing, and why
