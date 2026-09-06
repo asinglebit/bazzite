@@ -13,14 +13,17 @@
     "layer": "top",
     "position": "top",
 
-    // 30 -> 24. Combined with the 11px font and the 1px bottom border
-    // (style.css) this is noticeably thinner than stock.
-    "height": 24,
+    // 30 -> 24 -> 22. Hack Nerd Font Mono has a line height of 1.164em where
+    // Noto Sans Mono had 1.362em, so the same 11px text occupies 13px rather
+    // than 15px -- the font change is what makes 22 comfortable. The binding
+    // floor is the 16px tray icon plus the 1px bottom border (style.css), not
+    // the text.
+    "height": 22,
     "spacing": 2,
 
     "modules-left": ["sway/workspaces", "sway/mode"],
     "modules-center": ["sway/window"],
-    "modules-right": ["pulseaudio", "network", "cpu", "memory", "temperature", "clock", "tray"],
+    "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "temperature", "clock", "tray"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -41,19 +44,35 @@
     "pulseaudio": {
         "format": "{icon} {volume}%",
         "format-muted": "muted",
-        "format-icons": { "headphone": "", "headset": "", "default": ["", "", ""] },
+        "format-icons": { "headphone": "󰋋", "headset": "󰋎", "default": ["󰕿", "󰖀", "󰕾"] },
         "on-click": "pavucontrol"
     },
 
     // The stock config prints the full {ipaddr}/{cidr} inline, which is most of
     // the clutter on the right-hand side. Icon only; details in the tooltip.
     "network": {
-        "format-wifi": "",
-        "format-ethernet": "",
-        "format-linked": "",
-        "format-disconnected": "",
+        "format-wifi": "󰖩",
+        "format-ethernet": "󰈀",
+        "format-linked": "󰌙",
+        "format-disconnected": "󰌘",
         "tooltip-format": "{ifname}  {ipaddr}/{cidr}  via {gwaddr}",
         "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ifname}  {ipaddr}/{cidr}"
+    },
+
+    // Bluetooth. This replaces blueman-applet's tray icon, which is a
+    // full-colour PNG from hicolor and the one thing on the bar that could
+    // not be themed -- see the #tray note in style.css. waybar 0.15 talks to
+    // BlueZ over D-Bus itself, so this needs no helper script. The applet is
+    // suppressed by dotfiles/autostart/blueman.desktop (Hidden=true).
+    "bluetooth": {
+        "format": "󰂯",
+        "format-connected": "󰂱",
+        "format-disabled": "󰂲",
+        "format-off": "󰂲",
+        "tooltip-format": "{controller_alias}\t{controller_address}",
+        "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+        "on-click": "blueman-manager"
     },
 
     "cpu":    { "format": "cpu {usage}%", "interval": 5, "tooltip": false },

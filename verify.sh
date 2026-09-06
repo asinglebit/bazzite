@@ -60,9 +60,17 @@ pgrep -x waybar >/dev/null && ok "waybar running" || meh "waybar not running"
 # foot is still in this list on purpose. It is no longer bound to anything, but
 # it is kept installed as a fallback: ghostty is GPU-accelerated and this is an
 # NVIDIA box, so losing it would mean no terminal at all.
-for b in ghostty foot rofi Thunar grimshot wl-copy swaylock blueman-applet nm-applet; do
+for b in ghostty foot rofi Thunar grimshot wl-copy swaylock blueman-manager nm-applet; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
+
+# Hack Nerd Font Mono is vendored from the upstream release by
+# 10-sway-install.sh rather than installed as an RPM, since no repo this image
+# trusts carries a patched Hack. If it goes missing, text silently falls back to
+# Noto while icons keep working off the base image's symbols-only nerd-fonts
+# package -- half-broken in a way that is easy not to notice.
+fc-list | grep -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \
+    || no "Hack Nerd Font Mono MISSING -- bar, terminal and launcher fall back to Noto"
 
 # 10-sway-install.sh rewrites `set $term foot` in /etc/sway/config. sway expands
 # that variable at parse time into both `bindsym $mod+Return exec $term` and

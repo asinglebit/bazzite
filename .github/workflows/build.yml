@@ -169,6 +169,14 @@ jobs:
           grep -q '^set \$term ghostty$' /etc/sway/config
           command -v foot >/dev/null    # retained fallback
 
+          # Hack Nerd Font Mono is fetched from a GitHub release during the
+          # build -- the one artifact here that does not come from a signed
+          # repo. A 404 after an upstream retag, or a checksum bump that was
+          # not applied, has to fail CI rather than ship an image whose bar and
+          # terminal quietly fall back to Noto.
+          test -f /usr/share/fonts/hack-nerd-fonts/HackNerdFontMono-Regular.ttf
+          fc-list | grep -q 'Hack Nerd Font Mono'
+
           echo "image checks passed"
           EOF
 

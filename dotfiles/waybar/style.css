@@ -15,12 +15,17 @@
  */
 
 * {
-    font-family: 'Noto Sans Mono', 'Font Awesome 6 Free', 'Font Awesome 6 Brands', monospace;
+    /* Hack Nerd Font Mono: the patched face, so text and icons come from one
+     * file. The two Font Awesome families that used to be listed here were
+     * never installed on this image -- the glyphs they were meant to cover
+     * were resolving through fontconfig's Symbols Nerd Font fallback, when
+     * they were present at all. */
+    font-family: 'Hack Nerd Font Mono', monospace;
     font-size: 11px;
 
     /* GTK gives buttons a default minimum height that silently keeps the bar
      * tall no matter what "height" is set to in config.jsonc. Without this the
-     * 24px never takes effect. */
+     * 22px never takes effect. */
     min-height: 0;
 
     border: none;
@@ -46,6 +51,7 @@ window#waybar.hidden {
 #window,
 #pulseaudio,
 #network,
+#bluetooth,
 #cpu,
 #memory,
 #temperature,
@@ -118,9 +124,10 @@ window#waybar.empty #window {
     color: #5a5a5a;
 }
 
-/* Tray icons are supplied by the applications themselves (nm-applet, blueman),
- * so their colour is out of our hands -- GTK CSS has no filter/desaturate. dim
- * at least takes the edge off the passive ones. */
+/* Tray icons are supplied by the applications themselves (nm-applet), so
+ * their colour is out of our hands -- GTK CSS has no filter/desaturate. dim
+ * at least takes the edge off the passive ones. blueman used to be the worst
+ * offender here; it is now a real module above, drawn in the bar font.  */
 #tray {
     padding: 0 6px;
 }

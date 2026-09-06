@@ -77,6 +77,45 @@ test -f /usr/share/terminfo/x/xterm-ghostty
 # the --exclude above -- deleting the line from the list is not enough.
 rpm -q foot
 
+# Hack Nerd Font.
+#
+# Vendored from the upstream release, because no repo this image trusts carries
+# a patched Hack: Fedora ships only cascadia-*-nf-fonts, and the che:nerd-fonts
+# COPR that the base image already pulls `nerd-fonts` from builds ONLY that one
+# symbols-only package -- there is no nerd-fonts-hack to install.
+#
+# That base `nerd-fonts` package is a *fallback*: Symbols Nerd Font, wired in by
+# /etc/fonts/conf.d/10-nerd-font-symbols.conf, carrying icons and no Latin
+# glyphs at all. It is why Nerd glyphs render on a stock image, and it is not a
+# substitute for the patched face -- with it alone, text and icons come from two
+# files with two sets of metrics.
+#
+# Pinned by version AND by checksum: this is the one artifact in the build that
+# does not come from a GPG-verified repo, so the hash is what makes it
+# reproducible. Bump both together.
+#
+# All three variants are extracted (2.7MB for the lot). Mono forces icons to a
+# single cell, plain doubles them, Propo is proportional -- keeping all three
+# makes switching a config edit rather than another image build.
+NERD_FONTS_VERSION=3.5.1
+HACK_SHA256=cdd389472e10e2261520140ff1b382b4f8a226af5fd0b2735b975d31151d9c3c
+
+curl -fsSL -o /tmp/Hack.tar.xz \
+    "https://github.com/ryanoasis/nerd-fonts/releases/download/v${NERD_FONTS_VERSION}/Hack.tar.xz"
+echo "${HACK_SHA256}  /tmp/Hack.tar.xz" | sha256sum -c -
+
+install -d -m0755 /usr/share/fonts/hack-nerd-fonts
+tar -xJf /tmp/Hack.tar.xz -C /usr/share/fonts/hack-nerd-fonts --no-same-owner
+chmod 0644 /usr/share/fonts/hack-nerd-fonts/*
+rm -f /tmp/Hack.tar.xz
+fc-cache -f /usr/share/fonts/hack-nerd-fonts
+
+# Asserted for the same reason as ghostty above: a font that fails to install
+# does not break the build, it just silently falls back to Noto at runtime.
+test -f /usr/share/fonts/hack-nerd-fonts/HackNerdFontMono-Regular.ttf
+fc-list | grep -q 'Hack Nerd Font Mono'
+
+
 # Point sway's $term at ghostty.
 #
 # This has to happen at the source, not in a config.d drop-in. sway expands

@@ -32,7 +32,7 @@
 
 color=1a1a1a
 
-font=Noto Sans Mono
+font=Hack Nerd Font Mono
 
 # Thinner and wider than the stock ring (default radius 50, thickness 10), to
 # match the 1px-hairline feel of the bar. Revert these two lines for a chunkier

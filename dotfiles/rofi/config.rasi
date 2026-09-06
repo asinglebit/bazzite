@@ -80,7 +80,7 @@
     /* Matches waybar's `font-size: 11px` exactly. The "px" suffix is what
      * makes it an absolute size: a bare number in a Pango font description is
      * points, so plain "11" would render about a third larger than the bar. */
-    font:                        "Noto Sans Mono, monospace 11px";
+    font:                        "Hack Nerd Font Mono, monospace 11px";
 }
 
 window {
