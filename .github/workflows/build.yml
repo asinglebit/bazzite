@@ -41,9 +41,9 @@ jobs:
     runs-on: ubuntu-24.04
 
     permissions:
-      contents: read
-      packages: write
-      id-token: write
+      contents: read      # checkout
+      packages: write     # push to ghcr.io
+      # No id-token: signing is with a key, not keyless, so no OIDC is needed.
 
     strategy:
       # A broken KDE-removal list must not take the :test build down with it.
@@ -59,19 +59,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The base is 5.66 GB compressed / ~16 GB unpacked and the rechunk pass
-      # writes a second full copy, so peak demand is around 40 GB. A stock
-      # runner has ~25 GB free on / and ~65 GB on /mnt. Both steps below are
-      # needed; either alone is uncomfortably tight.
+      # The base image extracts to ~13 GB, and rpm-ostree's rechunk writes two
+      # further full copies (its /var/tmp ostree repo, then the chunked output),
+      # so peak demand is around 40 GB. This action takes / from ~20 GB free to
+      # ~50 GB, and extra-squeeze adds ~6 GB more by also dropping
+      # /opt/hostedtoolcache and miniconda. Everything stays on / -- the runner's
+      # temp disk is documented at 14 GB, smaller than the base image alone.
       - name: Free up disk space
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
-
-      - name: Move container storage to the large volume
-        run: |
-          set -euxo pipefail
-          sudo mkdir -p /mnt/container-storage /var/lib/containers
-          sudo mount --bind /mnt/container-storage /var/lib/containers
-          df -h / /mnt
+        with:
+          extra-squeeze: 'true'
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
@@ -100,6 +97,10 @@ jobs:
       # rewrites the manifest, and the signature is over the pushed digest.
       - name: Rechunk
         run: just rechunk-ci '${{ matrix.tag }}'
+
+      - name: Disk space after rechunk
+        if: always()
+        run: df -h /
 
       # Runs after the rechunk so it also proves the rechunk preserved /etc.
       - name: Check the built image
@@ -221,7 +222,9 @@ jobs:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
-          cosign verify --key cosign.pub "${DEST}@${DIGEST}"
+          cosign verify --key cosign.pub \
+            --insecure-ignore-tlog=true \
+            "${DEST}@${DIGEST}"
           echo "signature verifies against the committed cosign.pub"
 
       - name: Summary

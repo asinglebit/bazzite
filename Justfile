@@ -69,17 +69,47 @@ rechunk tag="test":
 rechunk-ci tag="test":
     #!/usr/bin/bash
     set -euxo pipefail
+    src="{{image}}:{{tag}}"
+
+    # build-chunked-oci given --rootfs builds the output image config from
+    # scratch, so every label from the Containerfile is dropped -- including
+    # org.opencontainers.image.source, which is what links the GHCR package to
+    # this repo. Capture them off the pre-rechunk image and hand them back.
+    #
+    # ostree.* is excluded deliberately: build-chunked-oci regenerates those
+    # for the new layer set, and re-applying the stale inherited ones is
+    # exactly the Missing ostree.final-diffid bug that rechunking exists to fix.
+    labels=()
+    while IFS= read -r kv; do
+        [[ -n "$kv" ]] && labels+=(--label "$kv")
+    done < <(sudo podman image inspect "$src" \
+        | jq -r '.[0].Labels // {} | to_entries[]
+                 | select(.key | startswith("ostree.") | not)
+                 | "\(.key)=\(.value)"')
+
     graphroot="$(sudo podman info --format json | jq -r '.store.graphRoot')"
+
     sudo podman run --rm --pull=never --privileged \
-        --mount=type=image,src={{image}}:{{tag}},target=/rpm-ostree \
+        --security-opt label=disable \
+        --mount=type=image,src="$src",target=/rpm-ostree \
         --mount=type=bind,src="${graphroot}",target=/run/host-container-storage,rw \
         --mount=type=tmpfs,target=/run/rpm-ostree-storage \
         --entrypoint /usr/bin/rpm-ostree \
-        {{image}}:{{tag}} \
+        "$src" \
         compose build-chunked-oci \
             --bootc --format-version=2 --max-layers 127 \
             --rootfs /rpm-ostree \
+            "${labels[@]}" \
             --output "containers-storage:[overlay@/run/host-container-storage+/run/rpm-ostree-storage]{{image}}:{{tag}}"
+
+    # A rechunk that quietly dropped the source label yields an orphaned GHCR
+    # package that never links back to the repo. Assert rather than hope.
+    sudo podman image inspect "$src" | jq -e '
+        .[0].Labels
+        | (.["containers.bootc"] == "1")
+          and has("ostree.final-diffid")
+          and (.["org.opencontainers.image.source"] | startswith("https://github.com/"))
+    ' >/dev/null
 
 # Point the system at a built tag. Reboot afterwards.
 #

@@ -23,12 +23,6 @@ ARG REMOVE_KDE=0
 ARG IMAGE_REGISTRY=""
 ARG IMAGE_TAG="test"
 
-# org.opencontainers.image.source is what makes GHCR attach the package to the
-# repo and inherit its visibility settings; without it the package floats free.
-LABEL org.opencontainers.image.source="https://github.com/asinglebit/bazzite"
-LABEL org.opencontainers.image.description="Bazzite-derived bootc image running Sway instead of KDE Plasma"
-LABEL org.opencontainers.image.title="bazzite-sway"
-
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
@@ -36,3 +30,9 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/build_files/build.sh
 
 RUN bootc container lint
+
+# org.opencontainers.image.source is what makes GHCR attach the package to the
+# repo and inherit its visibility settings; without it the package floats free.
+LABEL org.opencontainers.image.source="https://github.com/asinglebit/bazzite"
+LABEL org.opencontainers.image.description="Bazzite-derived bootc image running Sway instead of KDE Plasma"
+LABEL org.opencontainers.image.title="bazzite-sway"

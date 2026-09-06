@@ -52,8 +52,16 @@ docker:
     use-sigstore-attachments: true
 EOF
 
-# matchRepository: the signature must be for this repository, so a signature
-# lifted from some other image under the same key will not satisfy it.
+# matchRepository, not matchExact: cosign signs by digest, and :test and
+# :test-20260906 are two tags on one manifest. matchExact would bind the
+# signature to a single tag string and reject the other. It still refuses a
+# signature lifted from a different repository under the same key.
+#
+# keyPaths (array), not keyPath (scalar), mirroring the ublue-os block: to
+# rotate the signing key you ship an image trusting both, and drop the old one
+# once the machine has moved. With a scalar that is a flag day -- a machine on
+# the old image could not verify the new one, and would need another unsigned
+# bootstrap switch to recover.
 #
 # Key order in this object is irrelevant — containers-policy.json(5) matches by
 # most specific scope, not document order, so "ghcr.io/asinglebit" beats the ""
@@ -61,7 +69,7 @@ EOF
 jq --arg scope "${IMAGE_REGISTRY}" --arg key "${KEY_PATH}" \
    '.transports.docker[$scope] = [{
         "type": "sigstoreSigned",
-        "keyPath": $key,
+        "keyPaths": [ $key ],
         "signedIdentity": { "type": "matchRepository" }
     }]' "${POLICY}" > "${POLICY}.new"
 mv "${POLICY}.new" "${POLICY}"
@@ -71,8 +79,10 @@ mv "${POLICY}.new" "${POLICY}"
 test -s "${KEY_PATH}"
 jq -e --arg scope "${IMAGE_REGISTRY}" \
    '.transports.docker[$scope][0].type == "sigstoreSigned"' "${POLICY}" >/dev/null
-jq -e --arg key "${KEY_PATH}" \
-   '[.transports.docker[][]? | select(.keyPath == $key)] | length == 1' \
+jq -e --arg scope "${IMAGE_REGISTRY}" --arg key "${KEY_PATH}" \
+   '.transports.docker[$scope][0].keyPaths == [ $key ]
+    and .transports.docker[$scope][0].signedIdentity.type == "matchRepository"
+    and (.transports.docker[$scope] | length) == 1' \
    "${POLICY}" >/dev/null
 
 # The "" catch-all must survive. It is what lets the very first switch onto this

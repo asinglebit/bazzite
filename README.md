@@ -67,27 +67,55 @@ quietly become your next boot. If one is bad, `just rollback`; to pin to a speci
 
 ### First time: bootstrapping onto the published image
 
-The trust for `ghcr.io/asinglebit` only exists *inside* the image being installed, so the very
-first pull has nothing to verify against. That one switch is unverified; everything after it
-is not.
+Make the package public first, or the pull gets a 401 — new GHCR packages are private even on
+a public repo.
 
 ```bash
-just bootstrap-remote test      # unverified: matches the policy.json "" catch-all
-sudo systemctl reboot
-
-# confirm the trust actually landed
-podman image trust show | grep asinglebit
-just switch-remote test         # from here on, every pull is verified
+just switch-remote test
 sudo systemctl reboot
 ```
 
-`bootc` stores the whole `ostree-image-signed:` ref, so plain `just update` stays verified
-afterwards with no extra flags. Don't reach for `bootc switch --enforce-container-sigpolicy`
-— it demands that the *default* policy require signatures, and Bazzite's default is
-`insecureAcceptAnything`.
+One switch is enough, even though nothing on the machine trusts `ghcr.io/asinglebit` yet.
+bootc's only pre-flight check on an `ostree-image-signed:` ref is that the policy's *top-level*
+default isn't `insecureAcceptAnything` — Bazzite's is `reject`, so it passes — and the pull
+itself then finds no rule for the namespace and falls through to the `""` catch-all.
 
-Note the GHCR package is private when first published; make it public in its package settings
-or the pull gets a 401.
+So that first pull is trust-on-first-use. It has to be: the trust ships *inside* the image
+being installed. Everything after it is verified, because bootc stores the whole
+`ostree-image-signed:` ref and `bootc upgrade` reuses it verbatim.
+
+If the first switch is refused for any reason, `just bootstrap-remote test` does the same pull
+with a plain unverified ref; move to `just switch-remote` afterwards.
+
+Don't reach for `bootc switch --enforce-container-sigpolicy` — it demands that the *default*
+policy require signatures, which Bazzite's does not.
+
+### Confirming verification is actually on
+
+After the reboot, three checks. The first two can both pass while verification is silently
+falling through to the catch-all, so the third is the one that proves it.
+
+```bash
+# 1. the rule is loaded
+podman image trust show | grep asinglebit
+#    repository   ghcr.io/asinglebit   sigstoreSigned
+
+# 2. the policy is evaluated on a real pull — metadata only, no layers
+just update-check
+
+# 3. negative control: same policy, wrong key. Must be REFUSED, in about a
+#    second — the signature is checked before a single blob is fetched.
+jq '.transports.docker["ghcr.io/asinglebit"][0].keyPaths =
+    ["/etc/pki/containers/ublue-os.pub"]' \
+   /etc/containers/policy.json > /var/tmp/wrongkey.json
+skopeo --policy /var/tmp/wrongkey.json copy \
+   docker://ghcr.io/asinglebit/bazzite-sway:test dir:/var/tmp/sigproof
+#    expect: Source image rejected: cryptographic signature verification failed
+rm -rf /var/tmp/wrongkey.json /var/tmp/sigproof
+```
+
+If step 3 starts copying instead of failing, the rule is not matching and updates are going
+through unverified. Note `skopeo inspect` is no use here — it does not apply the policy at all.
 
 ### Signing
 
