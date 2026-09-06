@@ -48,6 +48,24 @@ sed -i \
 
 grep -E '^(PRETTY_NAME|IMAGE_ID|BOOTLOADER_NAME)=' /usr/lib/os-release
 
+# The ublue MOTD banner. /etc/bashrc sources profile.d for non-login shells as
+# well as login ones, and USERMOTDSOURCED is never exported, so it reprints on
+# every interactive shell -- once per tmux window, not once per terminal. The
+# supported off switch is a ~/.config/no-show-user-motd marker, but that is
+# keyed on $HOME, so root shells print it regardless of what the user set.
+#
+# It also misreports this artifact. motd/env.sh builds the displayed ref from
+# image-ref and image-*branch* -- not image-tag -- and image-branch names the
+# upstream stream this tracks, so the banner advertises
+# ghcr.io/asinglebit/bazzite-sway:stable, a tag this repo deliberately never
+# publishes. Its issue and Discord links point at bazzite.gg, not here.
+#
+# Asserted before removal rather than a bare `rm -f`: if upstream renames or
+# moves this file, an unconditional remove would silently no-op and the banner
+# would quietly come back on the next rebuild.
+test -e /etc/profile.d/user-motd.sh
+rm -f /etc/profile.d/user-motd.sh
+
 # uupd is uBlue's updater (ublue-update no longer exists). Left enabled it fires
 # at 04:00 against a ref it cannot upgrade, and bootc warns that an active
 # update agent can revert a queued rollback. Updates are `just update`, by hand.

@@ -149,7 +149,7 @@ containers-storage ref it brands itself with matches that reality.
 | `build_files/10-sway-install.sh` | Sway session + desktop essentials, NVIDIA env |
 | `build_files/20-display-manager.sh` | greetd + tuigreet become the DM |
 | `build_files/30-kde-remove.sh` | Plasma removal (only when `REMOVE_KDE=1`) |
-| `build_files/40-branding.sh` | os-release / image-info.json, disables `uupd.timer` |
+| `build_files/40-branding.sh` | os-release / image-info.json, removes the ublue MOTD banner, disables `uupd.timer` |
 | `build_files/50-signing.sh` | Bakes in the cosign key, `registries.d` entry and `policy.json` block. No-ops on a local build |
 | `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push to GHCR, cosign sign |
 | `cosign.pub` | Public half of the CI signing key. Committed on purpose; `cosign.key` never is |
