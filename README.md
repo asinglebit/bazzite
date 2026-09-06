@@ -154,10 +154,25 @@ containers-storage ref it brands itself with matches that reality.
 | `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push to GHCR, cosign sign |
 | `cosign.pub` | Public half of the CI signing key. Committed on purpose; `cosign.key` never is |
 | `system_files/` | Files copied verbatim into the image |
-| `dotfiles/` | Per-user config (monitor layout, appearance, theming, launcher, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. |
+| `dotfiles/` | Per-user **desktop** config (monitor layout, appearance, theming, launcher, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. Desktop only — see below. |
 | `verify.sh` | Post-boot checks |
 
 ## Things that are load-bearing, and why
+
+**`dotfiles/` is scoped to the desktop, deliberately.** What lives here is what a functional
+Bazzite/Sway session needs and nothing else: the compositor, the bar, the launcher, the lock
+screen, GTK theming, and `xdg-terminals.list`, which is the XDG wiring that makes Ghostty the
+default terminal. Everything that would still be useful on a different OS — shell config,
+toolchain versions via mise, tmux, Neovim, and Ghostty's own appearance — lives in
+[asinglebit/dotfiles](https://github.com/asinglebit/dotfiles) instead, which deploys with its
+own `install.sh` and has a per-OS `linux/` and `macos/` split.
+
+The two repos are independent on purpose: neither sources, references or requires the other,
+and exactly one of them owns any given path under `~/.config`. That is the rule that keeps
+`just link-dotfiles` and the dotfiles installer from fighting over the same symlink. Ghostty
+is the case that made it concrete — its config moved out to the dotfiles repo, while
+`xdg-terminals.list` stayed here, because one is a portable preference and the other is
+desktop integration.
 
 **`--unsupported-gpu` is mandatory.** Sway 1.11 (what F44 ships) hard-exits when the DRM
 driver is named `nvidia-drm`, and the *open* kernel modules match that check too. It goes
