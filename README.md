@@ -34,6 +34,9 @@ If anything goes wrong: `just rollback`, or hold **Shift** at boot and pick the
 `Bazzite Stable` GRUB entry (the new image labels itself `Bazzite Sway Stable`).
 `just restore` goes all the way back to stock upstream Bazzite.
 
+The image ships no per-user config and no toolchain — see
+[Per-user setup](#per-user-setup-after-first-boot) for the two repos that supply those.
+
 ## The published image
 
 CI rebuilds both variants nightly against current upstream Bazzite, rechunks them, pushes to
@@ -92,6 +95,31 @@ with a plain unverified ref; move to `just switch-remote` afterwards.
 
 Don't reach for `bootc switch --enforce-container-sigpolicy` — it demands that the *default*
 policy require signatures, which Bazzite's does not.
+
+### Per-user setup, after first boot
+
+The image carries the desktop; it deliberately carries none of the per-user config, and none
+of the dev toolchain. Two repos supply that, and they are independent — run both:
+
+```bash
+# 1. Desktop config: monitor layout, appearance, launcher, lock screen.
+#    From this repo. Idempotent, backs up anything in the way.
+just link-dotfiles
+swaymsg reload
+
+# 2. Shell, toolchains and terminal config. Separate repo, portable across OSs.
+git clone git@github.com:asinglebit/dotfiles.git ~/projects/personal/dotfiles
+~/projects/personal/dotfiles/install.sh --dry-run   # review
+~/projects/personal/dotfiles/install.sh
+exec bash -l
+```
+
+The second one installs mise's config, and mise then provisions Go, Rust, Node and pnpm on the
+next `mise install`. Nothing in the image depends on any of it, so skipping step 2 leaves a
+working desktop with a bare shell.
+
+Neither installer touches the other's paths — see
+[Things that are load-bearing](#things-that-are-load-bearing-and-why).
 
 ### Confirming verification is actually on
 
