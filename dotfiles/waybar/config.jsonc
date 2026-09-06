@@ -16,8 +16,7 @@
     // 30 -> 24 -> 22. Hack Nerd Font Mono has a line height of 1.164em where
     // Noto Sans Mono had 1.362em, so the same 11px text occupies 13px rather
     // than 15px -- the font change is what makes 22 comfortable. The binding
-    // floor is the 16px tray icon plus the 1px bottom border (style.css), not
-    // the text.
+    // floor is the 16px tray icon, not the text.
     "height": 22,
     "spacing": 2,
 

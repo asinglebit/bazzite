@@ -8,7 +8,7 @@
  *
  * Palette, dark to light:
  *   #1a1a1a  bar background   (desktop is #242424, so the bar reads darker)
- *   #2e2e2e  hairline / hover
+ *   #2e2e2e  tooltip border
  *   #5a5a5a  dim   - inactive workspaces
  *   #9a9a9a  base  - all module text
  *   #d8d8d8  bright- focused workspace, alerts
@@ -36,8 +36,6 @@
 
 window#waybar {
     background: #1a1a1a;
-    /* stock is a 3px solid rule; 1px is most of what makes this look thinner */
-    border-bottom: 1px solid #2e2e2e;
     color: #9a9a9a;
 }
 
