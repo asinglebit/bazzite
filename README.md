@@ -9,6 +9,12 @@ Built for `ghcr.io/ublue-os/bazzite-nvidia-open:stable` on an RTX 4070 Ti
 
 ## Quick start
 
+Already running it? Updates are `just update` — see [Updating](#updating). To install it on a
+machine for the first time, see
+[bootstrapping](#first-time-bootstrapping-onto-the-published-image).
+
+To build and test locally, without GHCR involved:
+
 ```bash
 just insurance      # pin the current deployment, stop uupd
 just build          # boot 1: Sway added, Plasma kept as a fallback session
@@ -28,15 +34,94 @@ If anything goes wrong: `just rollback`, or hold **Shift** at boot and pick the
 `Bazzite Stable` GRUB entry (the new image labels itself `Bazzite Sway Stable`).
 `just restore` goes all the way back to stock upstream Bazzite.
 
+## The published image
+
+CI rebuilds both variants nightly against current upstream Bazzite, rechunks them, pushes to
+GHCR and signs them with cosign.
+
+| Tag | Build | What it is |
+| --- | --- | --- |
+| `ghcr.io/asinglebit/bazzite-sway:test` | `REMOVE_KDE=0` | Sway added, Plasma kept as a fallback session |
+| `ghcr.io/asinglebit/bazzite-sway:latest` | `REMOVE_KDE=1` | Plasma stripped |
+
+Both also get a dated tag (`test-20260906`), so a bad night can be pinned around.
+
+The tag names are inverted from the usual convention on purpose: `latest` is the *stripped*
+image, matching `just build-nokde`.
+
+### Updating
+
+```bash
+just update-check    # anything new? metadata only, no layer download
+just update          # stage it; applies at the next reboot
+sudo systemctl reboot
+./verify.sh
+```
+
+`just update-now` stages and reboots in one step. Because the nightly rebuild tracks
+upstream, this is also how the ogc kernel, mesa and NVIDIA driver updates arrive.
+
+Nothing fetches on its own — no timer, no update agent, deliberately. A bad nightly can never
+quietly become your next boot. If one is bad, `just rollback`; to pin to a specific night,
+`just switch-remote test-20260905`.
+
+### First time: bootstrapping onto the published image
+
+The trust for `ghcr.io/asinglebit` only exists *inside* the image being installed, so the very
+first pull has nothing to verify against. That one switch is unverified; everything after it
+is not.
+
+```bash
+just bootstrap-remote test      # unverified: matches the policy.json "" catch-all
+sudo systemctl reboot
+
+# confirm the trust actually landed
+podman image trust show | grep asinglebit
+just switch-remote test         # from here on, every pull is verified
+sudo systemctl reboot
+```
+
+`bootc` stores the whole `ostree-image-signed:` ref, so plain `just update` stays verified
+afterwards with no extra flags. Don't reach for `bootc switch --enforce-container-sigpolicy`
+— it demands that the *default* policy require signatures, and Bazzite's default is
+`insecureAcceptAnything`.
+
+Note the GHCR package is private when first published; make it public in its package settings
+or the pull gets a 401.
+
+### Signing
+
+`50-signing.sh` bakes in three files, mirroring how the base image already trusts
+`ghcr.io/ublue-os`:
+
+| File | Why |
+| --- | --- |
+| `/etc/pki/containers/asinglebit.pub` | the cosign public key (`cosign.pub` in this repo) |
+| `/etc/containers/registries.d/asinglebit.yaml` | `use-sigstore-attachments: true` — without it the signature is never looked for, and verification silently passes on nothing |
+| `/etc/containers/policy.json` | a `sigstoreSigned` + `matchRepository` block for the namespace |
+
+`cosign.key` lives only in the repo's `SIGNING_SECRET` Actions secret and is gitignored. To
+check a published image by hand:
+
+```bash
+cosign verify --key cosign.pub ghcr.io/asinglebit/bazzite-sway:test
+```
+
+A local `just build` passes no registry, so it skips all of this and stays unsigned — the
+containers-storage ref it brands itself with matches that reality.
+
 ## Layout
 
 | Path | What it does |
 | --- | --- |
-| `Containerfile` | `FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable`, `ARG REMOVE_KDE` |
+| `Containerfile` | `FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable`; `ARG REMOVE_KDE`, `IMAGE_REGISTRY`, `IMAGE_TAG` |
 | `build_files/10-sway-install.sh` | Sway session + desktop essentials, NVIDIA env |
 | `build_files/20-display-manager.sh` | greetd + tuigreet become the DM |
 | `build_files/30-kde-remove.sh` | Plasma removal (only when `REMOVE_KDE=1`) |
 | `build_files/40-branding.sh` | os-release / image-info.json, disables `uupd.timer` |
+| `build_files/50-signing.sh` | Bakes in the cosign key, `registries.d` entry and `policy.json` block. No-ops on a local build |
+| `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push to GHCR, cosign sign |
+| `cosign.pub` | Public half of the CI signing key. Committed on purpose; `cosign.key` never is |
 | `system_files/` | Files copied verbatim into the image |
 | `dotfiles/` | Per-user config (monitor layout, appearance, theming, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. |
 | `verify.sh` | Post-boot checks |
@@ -96,13 +181,6 @@ rollback.
 - Don't use `ujust toggle-nvk` or the `40-nvidia.just` toggles — they do naive string
   substitution on the image URI and will break on a custom ref. `ujust verify-image` is
   safe; it no-ops on custom images.
-
-## Not done yet
-
-Publishing to GHCR with cosign signing and a nightly Actions rebuild. That needs a repo,
-`/etc/pki/containers/<you>.pub`, a `policy.json` namespace block and
-`/etc/containers/registries.d/<you>.yaml` baked into the image, plus one unsigned switch to
-bootstrap the policy.
 
 ## Prior art
 

@@ -1,0 +1,244 @@
+# Rebuild bazzite-sway against current upstream Bazzite, publish to GHCR, sign
+# with cosign.
+#
+# The image this produces is the one `just update` pulls. Both variants build in
+# parallel on their own runners:
+#
+#   :test    REMOVE_KDE=0  Sway added, Plasma kept as a fallback session
+#   :latest  REMOVE_KDE=1  Plasma stripped
+#
+# Tag semantics are inverted on purpose and match the Justfile and README.
+name: Build and publish
+
+on:
+  # Upstream Bazzite rebuilds daily. This is what makes the image track it
+  # without anyone remembering to run `just build`.
+  schedule:
+    - cron: '0 12 * * *'
+  push:
+    branches: [main]
+    # None of these can change the image, so they should not spend a build.
+    paths-ignore:
+      - '**.md'
+      - 'dotfiles/**'
+      - 'verify.sh'
+      - '.gitignore'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: bazzite-sway
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.tag }} (REMOVE_KDE=${{ matrix.remove_kde }})
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    strategy:
+      # A broken KDE-removal list must not take the :test build down with it.
+      fail-fast: false
+      matrix:
+        include:
+          - tag: test
+            remove_kde: 0
+          - tag: latest
+            remove_kde: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The base is 5.66 GB compressed / ~16 GB unpacked and the rechunk pass
+      # writes a second full copy, so peak demand is around 40 GB. A stock
+      # runner has ~25 GB free on / and ~65 GB on /mnt. Both steps below are
+      # needed; either alone is uncomfortably tight.
+      - name: Free up disk space
+        uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
+
+      - name: Move container storage to the large volume
+        run: |
+          set -euxo pipefail
+          sudo mkdir -p /mnt/container-storage /var/lib/containers
+          sudo mount --bind /mnt/container-storage /var/lib/containers
+          df -h / /mnt
+
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      # GHCR rejects a mixed-case path; github.repository_owner is not
+      # guaranteed lowercase.
+      - name: Resolve registry
+        id: reg
+        run: echo "registry=${IMAGE_REGISTRY,,}" >> "$GITHUB_OUTPUT"
+
+      # Same recipe you run locally. --pull=newer matters here: without it a
+      # nightly rebuild could sit on a cached base and never actually pick up
+      # upstream. `RUN bootc container lint` is the last layer, so it gates
+      # every build including pull requests.
+      - name: Build
+        run: |
+          just build-image \
+            '${{ matrix.remove_kde }}' \
+            '${{ matrix.tag }}' \
+            '${{ steps.reg.outputs.registry }}' \
+            newer
+
+      # Re-splits the image into per-package layers that stay byte-identical
+      # across rebuilds, which is what keeps a nightly `just update` in the
+      # hundreds of MB rather than multiple GB. Must precede the push: it
+      # rewrites the manifest, and the signature is over the pushed digest.
+      - name: Rechunk
+        run: just rechunk-ci '${{ matrix.tag }}'
+
+      # Runs after the rechunk so it also proves the rechunk preserved /etc.
+      - name: Check the built image
+        env:
+          TAG: ${{ matrix.tag }}
+          REGISTRY: ${{ steps.reg.outputs.registry }}
+        run: |
+          set -euo pipefail
+          sudo podman run --rm -i \
+            -e "REG=${REGISTRY}" -e "NS=${REGISTRY##*/}" \
+            --entrypoint /usr/bin/bash \
+            "localhost/${IMAGE_NAME}:${TAG}" -s <<'EOF'
+          set -euo pipefail
+          INFO=/usr/share/ublue-os/image-info.json
+
+          # Identity. base-image-name must stay kinoite: it is the runtime DE
+          # oracle for bazzite-user-setup and the ujust recipes.
+          jq -e '."image-name"       == "bazzite-sway"' "$INFO" >/dev/null
+          jq -e '."base-image-name"  == "kinoite"'      "$INFO" >/dev/null
+          jq -e '."image-ref" | startswith("ostree-image-signed:docker://")' "$INFO" >/dev/null
+          grep -q 'PRETTY_NAME="Bazzite Sway"' /usr/lib/os-release
+
+          # The three trust files, without which the published image could
+          # never verify its own updates.
+          test -s "/etc/pki/containers/${NS}.pub"
+          grep -q 'use-sigstore-attachments: true' "/etc/containers/registries.d/${NS}.yaml"
+          jq -e --arg r "$REG" \
+             '.transports.docker[$r][0].type == "sigstoreSigned"' \
+             /etc/containers/policy.json >/dev/null
+          # The catch-all has to survive, or the first bootstrap switch onto
+          # this image on an untrusting machine would be impossible.
+          jq -e '.transports.docker[""][0].type == "insecureAcceptAnything"' \
+             /etc/containers/policy.json >/dev/null
+
+          # Session essentials, cheap to assert and expensive to discover at boot.
+          readlink -f /etc/systemd/system/display-manager.service | grep -q greetd
+          test -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
+          test -e /usr/share/wayland-sessions/sway.desktop
+
+          echo "image checks passed"
+          EOF
+
+      # Two logins, because two different users need registry credentials:
+      # `sudo podman push` reads root's auth.json, cosign reads the runner
+      # user's ~/.docker/config.json.
+      - name: Log in to GHCR (root, for podman push)
+        if: github.event_name != 'pull_request'
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" \
+            | sudo podman login ghcr.io -u "$GHCR_USER" --password-stdin
+
+      - name: Log in to GHCR (runner, for cosign)
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push to GHCR
+        if: github.event_name != 'pull_request'
+        id: push
+        env:
+          TAG: ${{ matrix.tag }}
+          REGISTRY: ${{ steps.reg.outputs.registry }}
+        run: |
+          set -euxo pipefail
+          dest="${REGISTRY}/${IMAGE_NAME}"
+          # One date for the whole loop, so a run straddling midnight UTC does
+          # not produce two different dated tags.
+          dated="${TAG}-$(date -u +%Y%m%d)"
+          # Both tags are the same manifest, so they share one digest and one
+          # signature covers both.
+          for t in "${TAG}" "${dated}"; do
+            sudo podman push --digestfile=/tmp/digestfile \
+              "localhost/${IMAGE_NAME}:${TAG}" "${dest}:${t}"
+          done
+          {
+            echo "dest=${dest}"
+            echo "digest=$(sudo cat /tmp/digestfile)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.3'
+
+      # --new-bundle-format=false --use-signing-config=false are load-bearing:
+      # cosign v3 otherwise writes a bundle format that podman, skopeo and bootc
+      # cannot read as a sigstore attachment, and verification then fails at
+      # pull time on the machine rather than here.
+      - name: Sign the image
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ''
+          DEST: ${{ steps.push.outputs.dest }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign -y \
+            --new-bundle-format=false \
+            --use-signing-config=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            "${DEST}@${DIGEST}"
+
+      # Verify with the committed public key -- the same file baked into the
+      # image. If SIGNING_SECRET and cosign.pub ever drift apart, this fails
+      # here instead of bricking the next `just update`.
+      - name: Verify the signature
+        if: github.event_name != 'pull_request'
+        env:
+          DEST: ${{ steps.push.outputs.dest }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign verify --key cosign.pub "${DEST}@${DIGEST}"
+          echo "signature verifies against the committed cosign.pub"
+
+      - name: Summary
+        if: github.event_name != 'pull_request'
+        env:
+          DEST: ${{ steps.push.outputs.dest }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAG: ${{ matrix.tag }}
+        run: |
+          {
+            echo "### \`${TAG}\` published"
+            echo
+            echo '```'
+            echo "${DEST}:${TAG}"
+            echo "${DEST}:${TAG}-$(date -u +%Y%m%d)"
+            echo "digest ${DIGEST}"
+            echo '```'
+            echo
+            echo "Update this machine with \`just update\`."
+          } >> "$GITHUB_STEP_SUMMARY"

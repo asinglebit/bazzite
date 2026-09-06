@@ -2,3 +2,7 @@
 .gitignore
 README.md
 *.md
+.github
+dotfiles
+verify.sh
+Justfile

@@ -18,6 +18,7 @@ else
 fi
 
 "${CTX}/build_files/40-branding.sh"
+"${CTX}/build_files/50-signing.sh"
 
 # The package cache lives on a --mount=type=cache, so this only clears metadata
 # that would otherwise be baked into the image layers.
