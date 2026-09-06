@@ -42,5 +42,11 @@ font-size = 11
 # sway's away. This is an enum (none/auto/client/server), not a boolean.
 window-decoration = none
 
-window-padding-x = 8
-window-padding-y = 6
+# sway hands each window an arbitrary pixel size, but ghostty's grid is whole
+# character cells -- the leftover that will not fill a cell has to go
+# somewhere. At zero padding that remainder is the only padding left, and
+# balance splits it across opposite edges rather than piling all of it on the
+# right and bottom.
+window-padding-x = 0
+window-padding-y = 0
+window-padding-balance = true
