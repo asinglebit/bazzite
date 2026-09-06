@@ -18,7 +18,7 @@ To build and test locally, without GHCR involved:
 ```bash
 just insurance      # pin the current deployment, stop uupd
 just build          # boot 1: Sway added, Plasma kept as a fallback session
-just switch test
+just switch plasma
 sudo systemctl reboot
 ```
 
@@ -26,7 +26,7 @@ Log in, pick **Sway** in tuigreet, then run `./verify.sh`. Once it's clean:
 
 ```bash
 just build-nokde    # boot 2: Plasma removed
-just switch latest
+just switch sway
 sudo systemctl reboot
 ```
 
@@ -41,13 +41,16 @@ GHCR and signs them with cosign.
 
 | Tag | Build | What it is |
 | --- | --- | --- |
-| `ghcr.io/asinglebit/bazzite-sway:test` | `REMOVE_KDE=0` | Sway added, Plasma kept as a fallback session |
-| `ghcr.io/asinglebit/bazzite-sway:latest` | `REMOVE_KDE=1` | Plasma stripped |
+| `ghcr.io/asinglebit/bazzite-sway:plasma` | `REMOVE_KDE=0` | Sway added, Plasma kept as a fallback session |
+| `ghcr.io/asinglebit/bazzite-sway:sway` | `REMOVE_KDE=1` | Plasma stripped |
 
-Both also get a dated tag (`test-20260906`), so a bad night can be pinned around.
+Both also get a dated tag (`plasma-20260906`), so a bad night can be pinned around.
 
-The tag names are inverted from the usual convention on purpose: `latest` is the *stripped*
-image, matching `just build-nokde`.
+**There is deliberately no `:latest`.** A bare `bootc switch
+ghcr.io/asinglebit/bazzite-sway` resolves to it, and whichever variant it pointed at would be
+the wrong one half the time — silently, on a command that looks harmless. Without the tag the
+pull just fails and you name the variant you meant. The tags say which desktop you get, which
+is the only thing that actually differs between them.
 
 ### Updating
 
@@ -63,7 +66,7 @@ upstream, this is also how the ogc kernel, mesa and NVIDIA driver updates arrive
 
 Nothing fetches on its own — no timer, no update agent, deliberately. A bad nightly can never
 quietly become your next boot. If one is bad, `just rollback`; to pin to a specific night,
-`just switch-remote test-20260905`.
+`just switch-remote plasma-20260905`.
 
 ### First time: bootstrapping onto the published image
 
@@ -71,7 +74,7 @@ Make the package public first, or the pull gets a 401 — new GHCR packages are 
 a public repo.
 
 ```bash
-just switch-remote test
+just switch-remote plasma
 sudo systemctl reboot
 ```
 
@@ -84,7 +87,7 @@ So that first pull is trust-on-first-use. It has to be: the trust ships *inside*
 being installed. Everything after it is verified, because bootc stores the whole
 `ostree-image-signed:` ref and `bootc upgrade` reuses it verbatim.
 
-If the first switch is refused for any reason, `just bootstrap-remote test` does the same pull
+If the first switch is refused for any reason, `just bootstrap-remote plasma` does the same pull
 with a plain unverified ref; move to `just switch-remote` afterwards.
 
 Don't reach for `bootc switch --enforce-container-sigpolicy` — it demands that the *default*
@@ -109,7 +112,7 @@ jq '.transports.docker["ghcr.io/asinglebit"][0].keyPaths =
     ["/etc/pki/containers/ublue-os.pub"]' \
    /etc/containers/policy.json > /var/tmp/wrongkey.json
 skopeo --policy /var/tmp/wrongkey.json copy \
-   docker://ghcr.io/asinglebit/bazzite-sway:test dir:/var/tmp/sigproof
+   docker://ghcr.io/asinglebit/bazzite-sway:plasma dir:/var/tmp/sigproof
 #    expect: Source image rejected: cryptographic signature verification failed
 rm -rf /var/tmp/wrongkey.json /var/tmp/sigproof
 ```
@@ -132,7 +135,7 @@ through unverified. Note `skopeo inspect` is no use here — it does not apply t
 check a published image by hand:
 
 ```bash
-cosign verify --key cosign.pub ghcr.io/asinglebit/bazzite-sway:test
+cosign verify --key cosign.pub ghcr.io/asinglebit/bazzite-sway:plasma
 ```
 
 A local `just build` passes no registry, so it skips all of this and stays unsigned — the
@@ -177,6 +180,24 @@ no driver involvement.
 `plasma-foreground-booster-dmemcg`; `kde-*` would take `kde-settings`. Comps `group remove`
 isn't tracked on an atomic image at all. Qt6/KF6 libraries are kept deliberately so
 `btrfs-assistant`, `bazzite-updater` and KDE-flatpak theming keep working.
+
+**ghostty comes from Terra, in its own transaction.** It is not in Fedora at all. Terra (Fyra
+Labs) packages it, and the base image already carries `/etc/yum.repos.d/terra.repo` disabled
+with its signing key in `/etc/pki/rpm-gpg/` — Bazzite enables `terra-mesa` itself, so this is a
+repo the artifact already trusts rather than a new trust root. The install is deliberately a
+separate `dnf5 --enable-repo=terra install -y ghostty` rather than folded into the main package
+list: `--enable-repo` is a dnf5 global, so one combined call would let Terra satisfy *any*
+package in that list and silently swap Fedora builds for Terra ones. This is the project's only
+third-party repo dependency.
+
+**`$term` is rewritten in `/etc/sway/config`, not overridden from `config.d`.** sway expands
+`set` variables at parse time, and that file uses `$term` twice — the `$mod+Return` binding and
+rofi's `-terminal` — both already baked by the time the layered include on the last line reads
+`~/.config/sway/config.d/`. A late `set $term ghostty` there does nothing at all, which is why
+the build seds the source line and asserts the result. `foot` stays installed but unbound as a
+fallback, since ghostty is GPU-accelerated and this is an NVIDIA box; note it is a *weak*
+dependency of `sway-config-fedora`, so dropping it later needs `--exclude=foot` rather than just
+deleting the line from the list.
 
 **`base-image-name` stays `kinoite`** in `image-info.json`. It's the runtime DE oracle read
 by `bazzite-user-setup`, `80-bazzite.just` and `82-bazzite-sunshine.just`; any other value

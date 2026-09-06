@@ -21,7 +21,7 @@ ARG REMOVE_KDE=0
 # then keeps the containers-storage ref and 50-signing.sh skips the trust setup,
 # so `just build` still produces a working unsigned image with no GHCR involved.
 ARG IMAGE_REGISTRY=""
-ARG IMAGE_TAG="test"
+ARG IMAGE_TAG="plasma"
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \

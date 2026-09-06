@@ -3,7 +3,7 @@
 # Typical first run:
 #   just insurance      # pin the current deployment, stop the auto-updater
 #   just build          # boot 1: Sway added, Plasma still there as a fallback
-#   just switch test
+#   just switch plasma
 #   sudo systemctl reboot
 
 image_name := "bazzite-sway"
@@ -39,16 +39,16 @@ build-image variant tag registry="" pull="missing":
         --build-arg IMAGE_TAG={{tag}} \
         -t {{image}}:{{tag}} .
 
-# Boot 1: Sway alongside Plasma. Tag: :test
-build: (build-image "0" "test")
+# Boot 1: Sway alongside Plasma, still selectable at the login prompt. Tag: :plasma
+build: (build-image "0" "plasma")
 
-# Boot 2: Plasma removed. Tag: :latest
-build-nokde: (build-image "1" "latest")
+# Boot 2: Plasma removed. Tag: :sway
+build-nokde: (build-image "1" "sway")
 
 # Rechunk a built tag. Only needed if `switch` fails with
 # "Missing ostree.final-diffid" (ublue-os/bazzite#1892).
 [doc('Rechunk a built tag locally. Only for the Missing ostree.final-diffid bug.')]
-rechunk tag="test":
+rechunk tag="plasma":
     sudo rpm-ostree compose build-chunked-oci \
         --bootc --format-version=2 --max-layers=127 \
         --from {{image}}:{{tag}} \
@@ -66,7 +66,7 @@ rechunk tag="test":
 # instead of multiple GB: it re-splits the image into per-package layers that
 # stay byte-identical across rebuilds when the packages did not change.
 [doc('Rechunk without a host rpm-ostree, for CI runners.')]
-rechunk-ci tag="test":
+rechunk-ci tag="plasma":
     #!/usr/bin/bash
     set -euxo pipefail
     src="{{image}}:{{tag}}"
@@ -118,7 +118,7 @@ rechunk-ci tag="test":
 # and leaves the old build staged. `bootc upgrade` re-reads the ref and picks up
 # the new digest, so fall through to it.
 [doc('Point the system at a locally built tag. Reboot afterwards.')]
-switch tag="test":
+switch tag="plasma":
     #!/usr/bin/bash
     set -euo pipefail
     out=$(sudo bootc switch --transport containers-storage {{image}}:{{tag}} 2>&1) || { echo "$out"; exit 1; }
@@ -132,7 +132,7 @@ switch tag="test":
     ostree admin status
 
 # Stage without committing to a reboot.
-stage tag="test":
+stage tag="plasma":
     sudo bootc switch --transport containers-storage --download-only {{image}}:{{tag}}
 
 rollback:
@@ -172,7 +172,7 @@ update-now:
 # ghcr.io/asinglebit to be signed by /etc/pki/containers/asinglebit.pub. bootc stores
 # this whole ref, so plain `just update` stays verified with no extra flags.
 [doc('Point the system at the published image, verifying its signature.')]
-switch-remote tag="test":
+switch-remote tag="plasma":
     sudo bootc switch ostree-image-signed:docker://{{registry}}/{{image_name}}:{{tag}}
 
 # One-time, and only once: the very first switch onto GHCR.
@@ -182,7 +182,7 @@ switch-remote tag="test":
 # policy.json "" catch-all. Reboot, confirm the trust files landed, then use
 # switch-remote from then on. See README "Updating".
 [doc('One-time unverified first switch onto GHCR. Use switch-remote after.')]
-bootstrap-remote tag="test":
+bootstrap-remote tag="plasma":
     sudo bootc switch {{registry}}/{{image_name}}:{{tag}}
 
 status:

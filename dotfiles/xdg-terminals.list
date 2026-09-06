@@ -1,0 +1,12 @@
+# Which terminal xdg-terminal-exec(1) should open.
+#
+# xdg-terminal-exec is what the XDG spec says applications should call to open a
+# terminal, and it is installed here. Its vendor list at
+# /usr/share/xdg-terminal-exec/xdg-terminals.list still names foot and has no
+# ghostty entry, so without this file it falls back to scanning every desktop
+# entry with Categories=TerminalEmulator and picking one -- which is neither
+# deterministic nor necessarily ghostty.
+#
+# ~/.config/xdg-terminals.list is the highest-priority location in the search
+# path. Blank lines and #-comments are ignored; entries are Desktop Entry IDs.
+com.mitchellh.ghostty.desktop

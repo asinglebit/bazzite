@@ -47,6 +47,49 @@ dnf5 --exclude=sway-config-upstream install -y \
     blueman \
     wev
 
+# The terminal.
+#
+# ghostty is not in Fedora at all -- it comes from Terra (Fyra Labs), which the
+# base image already ships at /etc/yum.repos.d/terra.repo with enabled=0, and
+# whose signing key is already in /etc/pki/rpm-gpg/. Bazzite itself enables
+# terra-mesa, so this is a repo the artifact already trusts rather than a new
+# trust root.
+#
+# Deliberately its OWN transaction. --enable-repo is a dnf5 global like
+# --exclude, so folding it into the list above would let Terra satisfy any
+# package in that list and silently swap Fedora builds for Terra ones.
+#
+# ghostty-terminfo is a hard Requires, so it comes along on its own. That
+# matters more than it looks: ghostty sets TERM=xterm-ghostty, and without the
+# terminfo entry every ssh session and every curses app misbehaves in a way
+# that looks nothing like a terminal problem.
+dnf5 --enable-repo=terra install -y ghostty
+
+rpm -q ghostty ghostty-terminfo
+test -x /usr/bin/ghostty
+test -f /usr/share/applications/com.mitchellh.ghostty.desktop
+test -f /usr/share/terminfo/x/xterm-ghostty
+
+# foot stays installed, just unbound, as a fallback: ghostty is GPU-accelerated
+# and this is an NVIDIA box under --unsupported-gpu, and losing the only
+# terminal on a tiling WM is a bad way to discover that. It is also a *weak*
+# dependency of sway-config-fedora, so dropping it later needs foot added to
+# the --exclude above -- deleting the line from the list is not enough.
+rpm -q foot
+
+# Point sway's $term at ghostty.
+#
+# This has to happen at the source, not in a config.d drop-in. sway expands
+# `set` variables at parse time, and /etc/sway/config uses $term twice --
+# `bindsym $mod+Return exec $term` and rofi's `-terminal '$term'` -- both baked
+# long before the layered-include on the final line reads
+# ~/.config/sway/config.d/. A late `set $term ghostty` there does nothing at all.
+#
+# Asserted because a silent no-op is invisible until you press $mod+Return and
+# get foot.
+sed -i 's|^set \$term foot$|set $term ghostty|' /etc/sway/config
+grep -q '^set \$term ghostty$' /etc/sway/config
+
 # The polkit authentication agent.
 #
 # Two separate traps here, both of which cost a boot to find:

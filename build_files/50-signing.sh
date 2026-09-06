@@ -52,8 +52,8 @@ docker:
     use-sigstore-attachments: true
 EOF
 
-# matchRepository, not matchExact: cosign signs by digest, and :test and
-# :test-20260906 are two tags on one manifest. matchExact would bind the
+# matchRepository, not matchExact: cosign signs by digest, and :plasma and
+# :plasma-20260906 are two tags on one manifest. matchExact would bind the
 # signature to a single tag string and reject the other. It still refuses a
 # signature lifted from a different repository under the same key.
 #

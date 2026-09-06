@@ -4,10 +4,13 @@
 # The image this produces is the one `just update` pulls. Both variants build in
 # parallel on their own runners:
 #
-#   :test    REMOVE_KDE=0  Sway added, Plasma kept as a fallback session
-#   :latest  REMOVE_KDE=1  Plasma stripped
+#   :plasma  REMOVE_KDE=0  Sway added, Plasma kept as a fallback session
+#   :sway    REMOVE_KDE=1  Plasma stripped
 #
-# Tag semantics are inverted on purpose and match the Justfile and README.
+# There is deliberately no :latest. A bare `bootc switch ghcr.io/<owner>/
+# bazzite-sway` would resolve to it, and whichever variant we pointed it at
+# would be the wrong one half the time -- silently. Without the tag the pull
+# fails and you are told to name the variant you meant.
 name: Build and publish
 
 on:
@@ -46,13 +49,13 @@ jobs:
       # No id-token: signing is with a key, not keyless, so no OIDC is needed.
 
     strategy:
-      # A broken KDE-removal list must not take the :test build down with it.
+      # A broken KDE-removal list must not take the :plasma build down with it.
       fail-fast: false
       matrix:
         include:
-          - tag: test
+          - tag: plasma
             remove_kde: 0
-          - tag: latest
+          - tag: sway
             remove_kde: 1
 
     steps:
@@ -155,6 +158,16 @@ jobs:
           readlink -f /etc/systemd/system/display-manager.service | grep -q greetd
           test -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
           test -e /usr/share/wayland-sessions/sway.desktop
+
+          # The terminal. ghostty comes from Terra, the only third-party repo
+          # this build touches, so a Terra outage or a rename must fail here
+          # rather than land as a desktop with no working $mod+Return. The
+          # grep covers the sed in 10-sway-install.sh silently no-opping if
+          # sway-config-fedora ever reformats that line.
+          test -x /usr/bin/ghostty
+          test -f /usr/share/terminfo/x/xterm-ghostty
+          grep -q '^set \$term ghostty$' /etc/sway/config
+          command -v foot >/dev/null    # retained fallback
 
           echo "image checks passed"
           EOF

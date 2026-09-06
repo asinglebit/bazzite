@@ -4,7 +4,7 @@ set -euxo pipefail
 
 IMAGE_NAME="bazzite-sway"
 IMAGE_VENDOR="rattleworks"
-IMAGE_TAG="${IMAGE_TAG:-test}"
+IMAGE_TAG="${IMAGE_TAG:-plasma}"
 
 # image-ref is what the running system believes its own upstream is. A published
 # image must not claim to come from a local containers-storage path, so it

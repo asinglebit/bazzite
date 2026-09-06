@@ -57,9 +57,22 @@ pgrep -x gnome-keyring-d >/dev/null && ok "gnome-keyring running (Secret portal 
     || meh "gnome-keyring not running -- app passwords will not persist"
 pgrep -x mako >/dev/null && ok "mako running" || meh "mako not running"
 pgrep -x waybar >/dev/null && ok "waybar running" || meh "waybar not running"
-for b in foot rofi Thunar grimshot wl-copy swaylock blueman-applet nm-applet; do
+# foot is still in this list on purpose. It is no longer bound to anything, but
+# it is kept installed as a fallback: ghostty is GPU-accelerated and this is an
+# NVIDIA box, so losing it would mean no terminal at all.
+for b in ghostty foot rofi Thunar grimshot wl-copy swaylock blueman-applet nm-applet; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
+
+# 10-sway-install.sh rewrites `set $term foot` in /etc/sway/config. sway expands
+# that variable at parse time into both `bindsym $mod+Return exec $term` and
+# rofi's `-terminal`, so if the rewrite ever silently no-ops -- an upstream
+# reformat of that line would do it -- both quietly revert to foot.
+grep -q '^set \$term ghostty$' /etc/sway/config \
+    && ok "sway \$term is ghostty" \
+    || no "sway \$term is not ghostty -- \$mod+Return and rofi will open foot"
+infocmp xterm-ghostty >/dev/null 2>&1 && ok "xterm-ghostty terminfo present" \
+    || no "xterm-ghostty terminfo MISSING -- ssh and curses apps will misbehave"
 
 head_ "Bazzite gaming stack intact"
 for b in steam gamescope mangohud; do
@@ -79,7 +92,7 @@ done
 head_ "Sessions offered"
 ls /usr/share/wayland-sessions/
 if rpm -q --quiet plasma-workspace; then
-    meh "Plasma still installed (expected on the :test image, not on :latest)"
+    meh "Plasma still installed (expected on the :plasma image, not on :sway)"
 else
     ok "Plasma removed"
 fi
