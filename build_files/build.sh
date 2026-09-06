@@ -17,6 +17,7 @@ else
     echo "REMOVE_KDE=0 — leaving Plasma installed as a fallback session"
 fi
 
+"${CTX}/build_files/35-devel-install.sh"
 "${CTX}/build_files/40-branding.sh"
 "${CTX}/build_files/50-signing.sh"
 
