@@ -59,6 +59,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Fails in seconds rather than after a 40-minute build. Worse than the
+      # wasted time: without this the run would build, rechunk and push
+      # successfully and only fall over at the signing step, leaving an
+      # UNSIGNED image on GHCR that the policy baked into it will refuse on
+      # every later `bootc upgrade`.
+      - name: Check the signing secret exists
+        if: github.event_name != 'pull_request'
+        env:
+          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
+        run: |
+          if [ -z "${SIGNING_SECRET}" ]; then
+            echo "::error::SIGNING_SECRET is not set. Add the contents of cosign.key as a repository secret named SIGNING_SECRET (Settings -> Secrets and variables -> Actions) before publishing."
+            exit 1
+          fi
+          echo "SIGNING_SECRET is present"
+
       # The base image extracts to ~13 GB, and rpm-ostree's rechunk writes two
       # further full copies (its /var/tmp ostree repo, then the chunked output),
       # so peak demand is around 40 GB. This action takes / from ~20 GB free to
