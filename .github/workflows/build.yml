@@ -175,7 +175,9 @@ jobs:
           # not applied, has to fail CI rather than ship an image whose bar and
           # terminal quietly fall back to Noto.
           test -f /usr/share/fonts/hack-nerd-fonts/HackNerdFontMono-Regular.ttf
-          fc-list | grep -q 'Hack Nerd Font Mono'
+          # -q, not `| grep -q`: grep -q exits early, fc-list takes SIGPIPE,
+          # and the pipefail above turns a successful match into exit 141.
+          fc-list -q 'Hack Nerd Font Mono'
 
           echo "image checks passed"
           EOF

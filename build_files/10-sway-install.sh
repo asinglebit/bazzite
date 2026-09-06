@@ -113,7 +113,10 @@ fc-cache -f /usr/share/fonts/hack-nerd-fonts
 # Asserted for the same reason as ghostty above: a font that fails to install
 # does not break the build, it just silently falls back to Noto at runtime.
 test -f /usr/share/fonts/hack-nerd-fonts/HackNerdFontMono-Regular.ttf
-fc-list | grep -q 'Hack Nerd Font Mono'
+# fc-list -q rather than `fc-list | grep -q`: grep -q exits on its first
+# match, fc-list takes SIGPIPE, and pipefail turns that into exit 141 --
+# a green check that kills the build. -q is fontconfig's own match test.
+fc-list -q 'Hack Nerd Font Mono'
 
 
 # Point sway's $term at ghostty.

@@ -69,7 +69,7 @@ done
 # trusts carries a patched Hack. If it goes missing, text silently falls back to
 # Noto while icons keep working off the base image's symbols-only nerd-fonts
 # package -- half-broken in a way that is easy not to notice.
-fc-list | grep -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \
+fc-list -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \
     || no "Hack Nerd Font Mono MISSING -- bar, terminal and launcher fall back to Noto"
 
 # 10-sway-install.sh rewrites `set $term foot` in /etc/sway/config. sway expands
