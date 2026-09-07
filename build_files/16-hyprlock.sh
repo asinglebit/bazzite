@@ -30,8 +30,10 @@ set -euxo pipefail
 CTX="${CTX:-/ctx}"
 
 # Written by hand and shipped disabled, exactly as 15-swayfx.sh does and for the
-# same reasons. This is the project's THIRD third-party repo, and the only one
-# in the LOGIN PATH -- worth weighing on its own terms, not just counted.
+# same reasons. This is the project's THIRD third-party repo, and it puts a
+# non-Fedora binary between you and your own unlocked session -- worth weighing
+# on its own terms, not just counted. (The login screen itself now comes from
+# Terra; see 17-noctalia-greeter.sh, which weighs that separately.)
 #
 # WHY THIS COPR AND NOT solopasha/hyprland, which is the well-known one:
 # solopasha builds for fedora-rawhide ONLY. Its chroot list has no F44 entry at
@@ -128,7 +130,10 @@ test -L /usr/lib/systemd/user/sway-session.target.wants/hypridle.service
 #
 # /etc rather than /usr because the search list is compiled into hyprutils and
 # contains no /usr path -- there is nowhere else to put them. Same treatment as
-# the greetd and gtkgreet files in 20-display-manager.sh.
+# the greetd config in 20-display-manager.sh. The greeter's own config is the
+# other way round -- /usr/share/factory, copied into /var by tmpfiles.d -- because
+# noctalia-greeter's search order has no /etc path at all; see
+# 17-noctalia-greeter.sh.
 install -Dpm0644 "${CTX}/system_files/etc/xdg/hypr/hypridle.conf" /etc/xdg/hypr/hypridle.conf
 install -Dpm0644 "${CTX}/system_files/etc/xdg/hypr/hyprlock.conf" /etc/xdg/hypr/hyprlock.conf
 test -s /etc/xdg/hypr/hypridle.conf
@@ -137,9 +142,12 @@ test -s /etc/xdg/hypr/hyprlock.conf
 # NOTE ON WHAT IS *NOT* ASSERTED HERE, because it cannot be.
 #
 # The two `test -s` lines above assert that the fallbacks EXIST. They say
-# nothing about whether they PARSE, and that gap is unclosable here -- a real
-# one next to the greeter, which 20-display-manager.sh can validate because
-# `sway -C` parses without touching a device. Neither trick transfers: hypridle
+# nothing about whether they PARSE, and that gap is unclosable here. The greeter
+# used to be better off -- 20-display-manager.sh could run `sway -C`, which
+# parses without touching a device -- and since it became noctalia-greeter the
+# most its build script can do is check greeter.toml as TOML, which catches a
+# syntax error and a bad colour but not a key the greeter never heard of.
+# hypridle
 # connects to Wayland in its constructor, before it parses anything, so in this
 # container it dies with "Couldn't connect to a wayland compositor" having never
 # read the file; and hyprlock has no validate-only mode. hyprlang errors on
@@ -156,6 +164,7 @@ test -s /etc/xdg/hypr/hyprlock.conf
 # with an `exec timeout 6 hyprlock -c <candidate>`; it reaches "Locking session"
 # and "PAMPROMPT" on a good file and exits 1 on a bad one, without touching the
 # real session. That needs a compositor, so it belongs beside verify.sh and not
-# in this script.
+# in this script. The greeter's equivalent is `just greeter-preview`, which runs
+# it nested against greetd's fakegreet for the same reason.
 
 echo "locker: $(rpm -q hyprlock), idle: $(rpm -q hypridle)"

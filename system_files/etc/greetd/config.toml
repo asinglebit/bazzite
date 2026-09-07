@@ -1,47 +1,61 @@
-# greetd + gtkgreet, hosted in a throwaway Sway instance.
+# greetd + noctalia-greeter, which brings its own compositor.
 #
-# plasmalogin requires kwin-wayland, so it cannot outlive Plasma. That leaves a
-# greeter we drive ourselves, and for a long time that was tuigreet straight on
-# VT 1 -- attractive precisely because a pure-TTY ncurses greeter involves no
-# compositor and no GPU driver at all.
+# HOW THE LOGIN SCREEN GOT HERE. plasmalogin requires kwin-wayland, so it cannot
+# outlive Plasma. That left a greeter we drive ourselves, and for a long time
+# that was tuigreet straight on VT 1 -- attractive precisely because a pure-TTY
+# ncurses greeter involves no compositor and no GPU driver at all.
 #
 # What changed: a VT draws in cells of a fixed *pixel* bitmap, so the greeter's
 # physical size tracks whatever mode the DRM fbdev helper picked and the panel's
 # PPI. The same 8x16 cell measured 7.36mm tall on the 81 PPI HP and 3.69mm on
 # the 160 PPI Dell, and a userspace console font tops out at a 32px cell, which
-# only halves the gap. Nothing on the console is resolution-independent. Once a
-# compositor had to be in the login path to fix that, the greeter could just as
-# well be a real GTK client in the desktop's own palette --
-# /etc/greetd/sway-greeter.conf carries the full reasoning.
+# only halves the gap. Nothing on the console is resolution-independent.
 #
-# The cost is worth stating plainly: the NVIDIA DRM/GBM/GLES2 stack is now in
-# the login path. A driver regression that used to leave a working TTY greeter
-# behind will take the login screen down with the session, and the way back is
-# Ctrl+Alt+F2 (logind keeps six auto VTs) rather than simply logging in.
+# That first bought a throwaway SwayFX instance hosting gtkgreet. noctalia-greeter
+# replaces the whole arrangement: it is a native EGL/GLES2 Wayland client that
+# ships its own wlroots 0.20 compositor, so there is no second sway in the login
+# path, no layer-shell client to host and no session list to maintain by hand --
+# it reads /usr/share/wayland-sessions like any other display manager. Each
+# output gets its scale from its own geometry through wp_fractional_scale_v1,
+# which is the resolution independence this whole detour was for.
 #
-# tuigreet stays installed and unbound as the fallback -- the foot precedent.
-# To fall back, set command = "tuigreet --time --remember
-# --remember-user-session --asterisks --kb-sessions 3 --sessions
-# /usr/share/wayland-sessions --xsessions /usr/share/xsessions --cmd start-sway"
-# and `systemctl restart greetd`.
+# THE COST, stated plainly. A GPU stack is in the login path -- now a wlroots
+# 0.20 compositor from Terra, four months old, whose open bugs cluster on
+# multi-output DRM teardown, which is exactly this machine's shape. A driver or
+# greeter regression takes the login screen down with the session, and the way
+# back is Ctrl+Alt+F2 (logind keeps six auto VTs) rather than simply logging in.
+#
+# tuigreet stays installed and unbound as the fallback -- the foot precedent, and
+# now the only rung below this one, chosen because it needs no compositor and no
+# GPU whatsoever. To fall back:
+#
+#   command = "tuigreet --time --remember --remember-user-session --asterisks --kb-sessions 3 --sessions /usr/share/wayland-sessions --cmd start-sway"
+#
+# then `systemctl restart greetd`. gtkgreet is deliberately NOT installed any
+# more: hosting it needed a compositor of its own, which is the layer this
+# greeter made unnecessary.
 #
 # sddm-wayland-sway was rejected for a related but different reason, and still
 # is: it runs its greeter as a real Sway instance without letting you pass flags
-# to it, so it hits sway's own NVIDIA guard. Ours escapes that guard only
-# because start-sway hands it --unsupported-gpu.
+# to it, so it hits sway's own NVIDIA guard. greetd is the one that lets us write
+# the greeter's command line ourselves.
 
 [terminal]
 vt = 1
 
 [default_session]
-# start-sway rather than sway: it sources /etc/sway/environment
-# (--unsupported-gpu, -D noscanout, WLR_RENDERER=gles2) and passes -c through
-# untouched, so the greeter inherits the GPU configuration the session already
-# proves works instead of keeping a second copy of it.
+# /usr/libexec/noctalia-greeter-nvidia, not noctalia-greeter-session directly.
 #
-# The gtkgreet command line lives inside that config. It is not unsupervised
-# there: build_files/20-display-manager.sh parses it back out and checks it, so
-# a typo is a failed build rather than a greetd that burns its five restarts
-# against a VT with no getty on it.
-command = "start-sway -c /etc/greetd/sway-greeter.conf"
+# The wrapper exists because the bundled compositor is a SEPARATE wlroots
+# instance and inherits nothing from /etc/sway/environment, where this image's
+# GPU decisions live. It cannot be a greetd.service drop-in either: greetd builds
+# the session's environment itself, and upstream is explicit that environment
+# assignments inside this TOML do not work. The file carries the reasoning for
+# each variable it sets.
+#
+# It is not unsupervised there: build_files/17-noctalia-greeter.sh greps its
+# contents back out and 20-display-manager.sh checks this line, so a typo is a
+# failed build rather than a greetd that burns its five restarts against a VT
+# with no getty on it.
+command = "/usr/libexec/noctalia-greeter-nvidia"
 user = "greetd"

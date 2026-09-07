@@ -79,31 +79,113 @@ head_ "Display manager"
 dm=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)
 [[ "${dm}" == *greetd* ]] && ok "display-manager -> greetd" || no "display-manager -> ${dm:-none}"
 
-head_ "Greeter (gtkgreet in a Sway instance)"
-# greetd runs a Sway instance hosting gtkgreet rather than tuigreet on the VT,
-# so the greeter's size comes from the output rather than from a console bitmap
-# cell. Each of these is a blank login screen if it fails.
-test -f /etc/greetd/sway-greeter.conf \
-    && ok "greeter compositor config present" \
-    || no "no /etc/greetd/sway-greeter.conf -- greetd starts a Sway with no config and shows nothing"
-grep -q 'start-sway -c /etc/greetd/sway-greeter.conf' /etc/greetd/config.toml \
-    && ok "greetd launches the greeter via start-sway" \
-    || no "greetd is not calling start-sway -- a bare sway hits the NVIDIA guard and VT 1 dies"
-test -s /etc/gtkgreet/style.css \
-    && ok "gtkgreet stylesheet present" || no "no /etc/gtkgreet/style.css -- greeter falls back to stock GTK"
-test -s /etc/greetd/environments \
-    && ok "session list present" || no "no /etc/greetd/environments -- gtkgreet has nothing to log into"
-grep -q '^start-sway$' /etc/greetd/environments \
-    && ok "start-sway offered as a session" || no "start-sway not in /etc/greetd/environments"
-# -C validates without touching a device; --unsupported-gpu because sway runs
-# its NVIDIA guard before it validates anything.
-sway --unsupported-gpu -C -c /etc/greetd/sway-greeter.conf >/dev/null 2>&1 \
-    && ok "greeter config parses" \
-    || no "greeter config does NOT parse -- greetd will crash-loop off its 5 restarts, leaving VT 1 with no getty"
-command -v gtkgreet >/dev/null && ok "gtkgreet present" || no "gtkgreet MISSING"
-# Kept, unbound, as the fallback greeter -- see /etc/greetd/config.toml.
+head_ "Greeter (noctalia-greeter, own compositor)"
+greeter_fail_at_start=$fail
+# THIS SECTION AND `just greeter-preview` ARE THE ONLY CHECKS THAT SEE A LIVE
+# GREETER. The build validates greeter.toml's syntax and palette and runs
+# `noctalia-greeter sessions`, but it cannot start the greeter itself: the
+# compositor wants DRM and a logind seat, and no subcommand reads the config. The
+# sway-hosted gtkgreet this replaced could at least be parsed with `sway -C`. See
+# the note at the end of build_files/17-noctalia-greeter.sh. Each of the checks
+# below is a blank login screen if it fails.
+command -v noctalia-greeter-session >/dev/null \
+    && ok "noctalia-greeter present" || no "noctalia-greeter-session MISSING -- greetd has nothing to run"
+command -v noctalia-greeter-compositor >/dev/null \
+    && ok "greeter compositor present" \
+    || no "noctalia-greeter-compositor MISSING -- the greeter has nothing to draw on"
+test -d /usr/share/noctalia-greeter/assets \
+    && ok "greeter assets present" || no "no /usr/share/noctalia-greeter/assets -- greeter loses its fonts and icons"
+test -x /usr/libexec/noctalia-greeter-nvidia \
+    && ok "GPU wrapper present" \
+    || no "no /usr/libexec/noctalia-greeter-nvidia -- greetd's command line points at nothing"
+grep -q '^command = "/usr/libexec/noctalia-greeter-nvidia"$' /etc/greetd/config.toml \
+    && ok "greetd launches the greeter via the wrapper" \
+    || no "greetd is not calling the wrapper -- the compositor gets none of this image's GPU environment"
+
+# The state directory, which is the part that cannot be checked at build time at
+# all: /var is not in the image, so tmpfiles.d recreates this on every boot.
+# Upstream names a state directory the greeter cannot use as THE cause of a blank
+# greeter, and all three properties below are ways to get there.
+state=/var/lib/noctalia-greeter
+if [[ -d "$state" ]]; then
+    ok "state directory present"
+    [[ "$(stat -c '%U %a' "$state")" == "greetd 750" ]] \
+        && ok "state directory is greetd:0750" \
+        || no "state directory is $(stat -c '%U:%G %a' "$state"), not greetd 750 -- greeter cannot use it"
+    # greetd runs as xdm_t and /var/lib/greetd is xdm_var_lib_t; a directory
+    # created here without the file_contexts alias 17-noctalia-greeter.sh installs
+    # comes up var_lib_t, which xdm_t cannot write.
+    [[ "$(ls -Zd "$state")" == *xdm_var_lib_t* ]] \
+        && ok "state directory labelled xdm_var_lib_t" \
+        || no "state directory is $(ls -Zd "$state" | awk '{print $1}') -- SELinux will deny the greeter"
+    # Two things this check got wrong for as long as it has existed, both of
+    # which made it fail on a perfectly healthy greeter.
+    #
+    # 1. IT NEEDS A PRIVILEGED READ. $state is 0750 greetd:greetd -- deliberately,
+    #    three checks up -- so an unprivileged run has no search permission on it
+    #    and `test -s` on anything inside can only ever return false. `sudo -n`,
+    #    so this never sits at a password prompt; with no cached credential the
+    #    two checks below are skipped rather than reported as broken, because a
+    #    directory this script cannot read is not a broken login screen.
+    #
+    # 2. IT CANNOT EXPECT THE IMAGE'S FILE VERBATIM. The greeter rewrites
+    #    greeter.toml when it starts, into its own canonical serialisation:
+    #    comments stripped, keys sorted, the palette indented under
+    #    [appearance.palette], and `scheme` dropped because that one is read from
+    #    sync.toml. So `^surface` never matched -- what is on disk is
+    #    `    surface = "#1a1a1a"`. The check is on the VALUE, leading whitespace
+    #    allowed. (The header the greeter writes claims "UI and Sync never write
+    #    this". It does: that header text is in the binary's own string table.)
+    if greeter_toml="$(sudo -n cat "$state/greeter.toml" 2>/dev/null)"; then
+        [[ -n "$greeter_toml" ]] \
+            && ok "greeter.toml copied from the image" \
+            || no "$state/greeter.toml is empty -- the tmpfiles copy did not fire, greeter comes up stock"
+        grep -qE '^[[:space:]]*surface[[:space:]]*=[[:space:]]*"#1a1a1a"$' <<<"$greeter_toml" \
+            && ok "greeter.toml is the greyscale copy" \
+            || no "greeter.toml has no greyscale palette -- login screen will not match the desktop"
+    elif sudo -n true 2>/dev/null; then
+        no "no $state/greeter.toml -- the tmpfiles copy did not fire, greeter comes up stock"
+    else
+        meh "greeter.toml not checked -- $state is 0750 greetd:greetd; run 'sudo -v' first"
+    fi
+else
+    no "no $state -- tmpfiles.d did not run; greeter has no config and no state"
+fi
+
+# Behavioural, and the direct replacement for the old `sway -C` parse check:
+# `sessions` reads the wayland-sessions entries and exits before wanting a
+# display, so it runs from here. An empty list is a login screen you cannot log
+# in from.
+if sessions="$(noctalia-greeter sessions 2>&1)"; then
+    grep -qi 'sway' <<<"$sessions" \
+        && ok "greeter enumerates the Sway session" \
+        || no "greeter lists no Sway session -- check /usr/share/wayland-sessions/sway.desktop"
+    grep -qi 'plasma' <<<"$sessions" \
+        && no "greeter still offers Plasma -- plasma.desktop outlived the KDE removal" \
+        || ok "Sway is the only session offered"
+else
+    no "noctalia-greeter sessions failed -- $(head -1 <<<"$sessions")"
+fi
+
+# Kept, unbound, as the only fallback greeter -- see /etc/greetd/config.toml. It
+# needs no compositor and no GPU, which is the whole reason it is the one kept.
 command -v tuigreet >/dev/null && ok "tuigreet present (fallback)" \
-    || no "tuigreet MISSING -- no fallback if gtkgreet fails"
+    || no "tuigreet MISSING -- no fallback if the greeter fails"
+command -v gtkgreet >/dev/null \
+    && meh "gtkgreet still installed -- it was dropped with the sway greeter" \
+    || ok "gtkgreet gone with the sway-hosted greeter"
+# Both were shipped in /etc, so an upgraded system can keep them after they left
+# the image. Harmless -- nothing reads them now -- but confusing to find.
+{ test -e /etc/greetd/environments || test -e /etc/gtkgreet/style.css; } \
+    && meh "leftover gtkgreet-era files in /etc (environments, gtkgreet/style.css) -- unused, safe to delete" \
+    || ok "no gtkgreet-era leftovers in /etc"
+
+# If the greeter did fail, the reason is in greetd's journal rather than on
+# screen -- the login path has nowhere to print to.
+if [[ $fail -gt $greeter_fail_at_start ]]; then
+    printf '        --- journalctl -b -u greetd (last 10) ---\n'
+    journalctl -b -u greetd --no-pager -n 10 2>/dev/null | sed 's/^/        /'
+fi
 
 head_ "Graphics"
 swaymsg -t get_outputs -r 2>/dev/null | jq -r '.[] | "  output \(.name) \(.current_mode.width)x\(.current_mode.height)@\(.current_mode.refresh/1000)Hz  active=\(.active)"' 2>/dev/null
@@ -282,7 +364,7 @@ readlink /usr/share/icons/Papirus/48x48/places/user-home.svg 2>/dev/null | grep 
     || meh "user-home.svg not recoloured -- only the folder* half was linked"
 
 head_ "New helpers"
-for b in swaync-client cliphist swappy wlogout nmcli gtkgreet; do
+for b in swaync-client cliphist swappy wlogout nmcli; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
 grep -q 'combi-modes drun#run#window' /etc/sway/config \
@@ -312,9 +394,12 @@ for p in kf6-kwallet btrfs-assistant bazzite-updater; do
 done
 
 head_ "Sessions offered"
+# This directory IS the login screen's session list -- noctalia-greeter scans it
+# and reads nothing else. Anything that lands here is offered; anything that does
+# not, cannot be logged into.
 ls /usr/share/wayland-sessions/
 if rpm -q --quiet plasma-workspace; then
-    meh "Plasma still installed (expected on the :plasma image, not on :sway)"
+    no "Plasma still installed -- 30-kde-remove.sh should always run now"
 else
     ok "Plasma removed"
 fi

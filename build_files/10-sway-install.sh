@@ -49,7 +49,6 @@ dnf5 --exclude=sway-config-upstream install -y \
     SwayNotificationCenter \
     cliphist \
     swappy \
-    gtkgreet \
     adw-gtk3-theme \
     papirus-icon-theme-dark \
     rsms-inter-fonts

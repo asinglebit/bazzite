@@ -11,10 +11,10 @@ export CTX
 "${CTX}/build_files/10-sway-install.sh"
 
 # SwayFX has to land between the sway install and the display manager. It
-# installs its binary at /usr/bin/sway (it Provides: sway, Conflicts: sway), so
-# 20-display-manager.sh's `sway -C -c /etc/greetd/sway-greeter.conf` assertion
-# validates the greeter config with the binary that will actually run it, rather
-# than with the Fedora sway that is about to be replaced.
+# installs its binary at /usr/bin/sway (it Provides: sway, Conflicts: sway), and
+# 17-noctalia-greeter.sh asserts that binary still links libwlroots-0.19 while
+# the greeter's own compositor links 0.20 -- run before this, that tripwire would
+# be checking the Fedora sway that is about to be replaced.
 "${CTX}/build_files/15-swayfx.sh"
 
 # The locker. After 15 because hyprlock and swayfx share the GLES2/EGL path that
@@ -22,13 +22,18 @@ export CTX
 # keeping the numbering honest.
 "${CTX}/build_files/16-hyprlock.sh"
 
+# The greeter: noctalia-greeter, which ships its own wlroots 0.20 compositor.
+# After 15 for the soname tripwire described above, and before 20, which is what
+# points greetd at the wrapper this installs.
+"${CTX}/build_files/17-noctalia-greeter.sh"
+
 "${CTX}/build_files/20-display-manager.sh"
 
-if [[ "${REMOVE_KDE:-0}" == "1" ]]; then
-    "${CTX}/build_files/30-kde-remove.sh"
-else
-    echo "REMOVE_KDE=0 — leaving Plasma installed as a fallback session"
-fi
+# Plasma always goes. There is no second variant of this image: greetd runs
+# noctalia-greeter, the session list is whatever ships a wayland-sessions entry,
+# and the way back from a broken session is a rollback rather than a login
+# prompt that offers two desktops.
+"${CTX}/build_files/30-kde-remove.sh"
 
 "${CTX}/build_files/35-devel-install.sh"
 "${CTX}/build_files/40-branding.sh"

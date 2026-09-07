@@ -21,44 +21,50 @@ machine for the first time, see
 To build and test locally, without GHCR involved:
 
 ```bash
-just insurance      # pin the current deployment, stop uupd
-just build          # boot 1: Sway added, Plasma kept as a fallback session
-just switch plasma
+just insurance         # pin the current deployment, stop uupd
+just build
+just switch
 sudo systemctl reboot
 ```
 
-Log in, pick **start-sway** in gtkgreet, then run `./verify.sh`. Once it's clean:
+Log in — **Sway** is the only session offered — then run `./verify.sh` and
+`just greeter-preview`.
 
-```bash
-just build-nokde    # boot 2: Plasma removed
-just switch sway
-sudo systemctl reboot
-```
+`greeter-preview` opens the login screen as an ordinary window in the running session, against
+`fakegreet` instead of greetd, so the palette can be tuned without logging out. It runs
+*after* the reboot, not before: `fakegreet` and the greeter are in the image, so the recipe
+needs the deployment that carries them. There is no way to see this greeter on the old
+deployment, which is the one real regression against the sway-hosted gtkgreet it replaced —
+that one could be parsed, if not seen, at build time.
 
 If anything goes wrong: `just rollback`, or hold **Shift** at boot and pick the
 `Bazzite Stable` GRUB entry (the new image labels itself `Bazzite Sway Stable`).
-`just restore` goes all the way back to stock upstream Bazzite.
+`just restore` goes all the way back to stock upstream Bazzite. If the *login screen*
+specifically is black, that is `Ctrl+Alt+F2` and the switch-back line in
+`/etc/greetd/config.toml` — see [Known limitations](#known-limitations).
 
 The image ships no per-user config and no toolchain — see
 [Per-user setup](#per-user-setup-after-first-boot) for the two repos that supply those.
 
 ## The published image
 
-CI rebuilds both variants nightly against current upstream Bazzite, rechunks them, pushes to
-GHCR and signs them with cosign.
+CI rebuilds it nightly against current upstream Bazzite, rechunks it, pushes to GHCR and signs
+it with cosign.
 
-| Tag | Build | What it is |
-| --- | --- | --- |
-| `ghcr.io/asinglebit/bazzite-sway:plasma` | `REMOVE_KDE=0` | Sway added, Plasma kept as a fallback session |
-| `ghcr.io/asinglebit/bazzite-sway:sway` | `REMOVE_KDE=1` | Plasma stripped |
+| Tag | What it is |
+| --- | --- |
+| `ghcr.io/asinglebit/bazzite-sway:sway` | SwayFX, noctalia-greeter, Plasma removed |
 
-Both also get a dated tag (`plasma-20260906`), so a bad night can be pinned around.
+It also gets a dated tag (`sway-20260906`), so a bad night can be pinned around.
 
-**There is deliberately no `:latest`.** A bare `bootc switch
-ghcr.io/asinglebit/bazzite-sway` resolves to it, and whichever variant it pointed at would be
-the wrong one half the time — silently, on a command that looks harmless. Without the tag the
-pull just fails and you name the variant you meant. The tags say which desktop you get, which
-is the only thing that actually differs between them.
+**There is deliberately no `:latest`.** Deployments track the `:sway` ref, so a bare
+`bootc switch ghcr.io/asinglebit/bazzite-sway` resolving to some other tag would silently
+change what the machine follows. Without the tag the pull just fails and you name what you
+meant.
+
+There used to be a second `:plasma` variant, built with `REMOVE_KDE=0`, that kept the Plasma
+session selectable at the login prompt as first-install insurance. It is gone: Plasma is
+always removed, and a rollback is the insurance.
 
 ### Updating
 
@@ -74,7 +80,7 @@ upstream, this is also how the ogc kernel, mesa and NVIDIA driver updates arrive
 
 Nothing fetches on its own — no timer, no update agent, deliberately. A bad nightly can never
 quietly become your next boot. If one is bad, `just rollback`; to pin to a specific night,
-`just switch-remote plasma-20260905`.
+`just switch-remote sway-20260905`.
 
 ### First time: bootstrapping onto the published image
 
@@ -82,7 +88,7 @@ Make the package public first, or the pull gets a 401 — new GHCR packages are 
 a public repo.
 
 ```bash
-just switch-remote plasma
+just switch-remote sway
 sudo systemctl reboot
 ```
 
@@ -95,7 +101,7 @@ So that first pull is trust-on-first-use. It has to be: the trust ships *inside*
 being installed. Everything after it is verified, because bootc stores the whole
 `ostree-image-signed:` ref and `bootc upgrade` reuses it verbatim.
 
-If the first switch is refused for any reason, `just bootstrap-remote plasma` does the same pull
+If the first switch is refused for any reason, `just bootstrap-remote sway` does the same pull
 with a plain unverified ref; move to `just switch-remote` afterwards.
 
 Don't reach for `bootc switch --enforce-container-sigpolicy` — it demands that the *default*
@@ -150,7 +156,7 @@ jq '.transports.docker["ghcr.io/asinglebit"][0].keyPaths =
     ["/etc/pki/containers/ublue-os.pub"]' \
    /etc/containers/policy.json > /var/tmp/wrongkey.json
 skopeo --policy /var/tmp/wrongkey.json copy \
-   docker://ghcr.io/asinglebit/bazzite-sway:plasma dir:/var/tmp/sigproof
+   docker://ghcr.io/asinglebit/bazzite-sway:sway dir:/var/tmp/sigproof
 #    expect: Source image rejected: cryptographic signature verification failed
 rm -rf /var/tmp/wrongkey.json /var/tmp/sigproof
 ```
@@ -173,7 +179,7 @@ through unverified. Note `skopeo inspect` is no use here — it does not apply t
 check a published image by hand:
 
 ```bash
-cosign verify --key cosign.pub ghcr.io/asinglebit/bazzite-sway:plasma
+cosign verify --key cosign.pub ghcr.io/asinglebit/bazzite-sway:sway
 ```
 
 A local `just build` passes no registry, so it skips all of this and stays unsigned — the
@@ -183,12 +189,13 @@ containers-storage ref it brands itself with matches that reality.
 
 | Path | What it does |
 | --- | --- |
-| `Containerfile` | `FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable`; `ARG REMOVE_KDE`, `IMAGE_REGISTRY`, `IMAGE_TAG` |
+| `Containerfile` | `FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable`; `ARG IMAGE_REGISTRY`, `IMAGE_TAG` |
 | `build_files/10-sway-install.sh` | Sway session + desktop essentials, NVIDIA env, black Papirus folders |
 | `build_files/15-swayfx.sh` | Swaps `sway` for `swayfx` from a COPR. Sets up the repo disabled, swaps in one transaction |
 | `build_files/16-hyprlock.sh` | `hyprlock` + `hypridle` from a COPR, the `hypridle.service` enablement symlink, and the `/etc/xdg/hypr` fallback configs |
-| `build_files/20-display-manager.sh` | greetd + a Sway-hosted **gtkgreet** become the DM |
-| `build_files/30-kde-remove.sh` | Plasma removal (only when `REMOVE_KDE=1`) |
+| `build_files/17-noctalia-greeter.sh` | `noctalia-greeter` from Terra, its GPU wrapper, its greyscale `greeter.toml` and the SELinux alias its state directory needs |
+| `build_files/20-display-manager.sh` | greetd becomes the DM and is pointed at the greeter wrapper |
+| `build_files/30-kde-remove.sh` | Plasma removal |
 | `build_files/40-branding.sh` | os-release / image-info.json, removes the ublue MOTD banner, disables `uupd.timer` |
 | `build_files/50-signing.sh` | Bakes in the cosign key, `registries.d` entry and `policy.json` block. No-ops on a local build |
 | `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push to GHCR, cosign sign |
@@ -232,28 +239,52 @@ file dialogs, screen sharing and the Steam overlay with it. `sway-config-fedora`
 **greetd, not SDDM or plasmalogin.** `sddm-wayland-sway` runs its greeter *as a Sway instance*
 and gives you no way to pass flags to it, so it hits sway's own NVIDIA guard; `plasmalogin`
 requires `kwin-wayland`, so it can't outlive Plasma. greetd is the one that lets us write the
-greeter's command line ourselves, which is the only reason that guard is escapable at all.
+greeter's command line ourselves — back when the greeter *was* a Sway instance that was the only
+reason sway's guard was escapable at all, and it is still what makes it possible to put
+`/usr/libexec/noctalia-greeter-nvidia` in front of the greeter now.
 
-**The greeter runs inside Sway, not on the VT.** A kernel console draws in cells of a fixed
-*pixel* bitmap, so tuigreet's physical size tracked whichever mode the DRM fbdev helper picked
-and the panel's PPI — the same 8x16 cell measured 7.36mm tall on the 81 PPI HP and 3.69mm on
-the 160 PPI Dell. This kernel is built `# CONFIG_FONTS is not set`, so `fbcon=font:` has
-nothing bigger to offer, and a userspace console font tops out at a 32px cell: half the gap,
-not none of it. Nothing on the console is resolution-independent.
+**The greeter is not on the VT, because nothing on a VT is resolution-independent.** A kernel
+console draws in cells of a fixed *pixel* bitmap, so tuigreet's physical size tracked whichever
+mode the DRM fbdev helper picked and the panel's PPI — the same 8x16 cell measured 7.36mm tall
+on the 81 PPI HP and 3.69mm on the 160 PPI Dell. This kernel is built
+`# CONFIG_FONTS is not set`, so `fbcon=font:` has nothing bigger to offer, and a userspace
+console font tops out at a 32px cell: half the gap, not none of it.
 
-So greetd runs `start-sway -c /etc/greetd/sway-greeter.conf`, and since a compositor had to be
-in the login path anyway, the greeter is **gtkgreet** rather than tuigreet — GTK3, so it
-inherits `adw-gtk3-dark`, Papirus-Dark and Inter from the image and is styled from
-`/etc/gtkgreet/style.css` in the same palette as the desktop. `start-sway` and never `sway`:
-it sources `/etc/sway/environment` and passes `-c` through, so the greeter inherits the
-`--unsupported-gpu -D noscanout` and `WLR_RENDERER=gles2` the session already proves work on
-this GPU.
+That first bought a throwaway SwayFX instance hosting gtkgreet on a layer surface. The greeter
+is now **noctalia-greeter**, which needs no host: it is a native EGL/GLES2 Wayland client — no
+Qt, no GTK, no Quickshell — and it **ships its own wlroots 0.20 compositor**. So the whole
+hosting layer went away with it: no `sway-greeter.conf`, no `--layer-shell`, and no
+`/etc/greetd/environments`, because it scans `/usr/share/wayland-sessions` like any other
+display manager. Each output gets its scale from its own geometry through
+`wp_fractional_scale_v1` + `wp_viewporter`, which is what the detour was for. It is themed from
+`/var/lib/noctalia-greeter/greeter.toml` — its Material colour roles mapped onto the desktop's
+seven greys, `scheme_selector_position = "hidden"` so nothing on screen can swap that out, and
+deliberately **no `[output]` block**: per-connector scale constants would be the same
+hardware-tuned mistake as the console cell, written by hand.
 
-The cost is real and deliberate — the NVIDIA stack is now in the login path, so a driver
+It comes from **Terra**, which is not a new trust root — the base image already ships
+`terra.repo` disabled with its keys in `/etc/pki/rpm-gpg/`, and `ghostty` already installs from
+it. Fedora 44's `wlroots` is 0.20 and its `wlroots0.19` compat package is what SwayFX links, so
+the greeter's compositor and the session's coexist; `17-noctalia-greeter.sh` asserts both
+sonames, and that `wlroots` is still Fedora's build rather than Terra's.
+
+greetd runs `/usr/libexec/noctalia-greeter-nvidia` rather than `noctalia-greeter-session`
+directly. That wrapper exists because the bundled compositor is a *separate* wlroots instance
+and inherits nothing from `/etc/sway/environment`, and it can't be a `greetd.service` drop-in
+either: greetd builds the session's environment itself, and upstream is explicit that env
+assignments inside greetd's TOML don't work. It pins `WLR_RENDERER=gles2` — for a different
+reason than the session does, where that's a SwayFX constraint; here it's the only renderer
+this image has proven on nvidia-open.
+
+The cost is real and deliberate, and it grew. A GPU stack is in the login path, so a driver
 regression takes the login screen down with the session instead of leaving a working TTY
-greeter behind. **tuigreet stays installed, unbound**, as the way back: `Ctrl+Alt+F2`, point
-`command =` in `/etc/greetd/config.toml` at `tuigreet ... --cmd start-sway`, and
-`systemctl restart greetd`.
+greeter behind — and that stack is now a four-month-old third-party compositor whose open bugs
+cluster on multi-output DRM teardown, which is exactly this machine's shape. **tuigreet stays
+installed, unbound**, as the only rung below it, chosen because it needs no compositor and no
+GPU at all: `Ctrl+Alt+F2`, point `command =` in `/etc/greetd/config.toml` at the
+`tuigreet ... --cmd start-sway` line written in its comments, and `systemctl restart greetd`.
+gtkgreet is *not* kept — hosting it needed a compositor of its own, which is the layer this
+change deletes.
 
 **SwayFX costs the Vulkan renderer, and that is the price of the effects.** SwayFX implements
 blur, corner radius, shadows and dim-inactive in its own `fx_renderer`, which is GLES2-only —
@@ -306,12 +337,19 @@ which resolves to the same thing here but silently. What is genuinely lost is sw
 `SIGUSR1` "unlock and exit": `loginctl unlock-session` no longer dismisses the locker, so you
 authenticate at the keyboard.
 
-**Neither locker config can be checked at build time, unlike the greeter.** `sway -C` validates
-the greeter config without touching a device, but hypridle connects to Wayland *before* it
-parses anything and hyprlock has no validate-only mode. hyprlang errors on unknown keys, so one
+**Nothing in the login or lock path can be checked *by the thing that reads it* at build
+time.** `sway -C` validated the old greeter config without touching a device, and that check
+left with the sway-hosted greeter: noctalia-greeter has no validate-only mode, its compositor
+wants DRM and a logind seat, and neither of its subcommands reads `greeter.toml` at all — so a
+misspelled key is ignored in silence. `17-noctalia-greeter.sh` gets as close as it can, checking
+the file as TOML and asserting the palette, and runs `noctalia-greeter sessions` for the one
+behavioural check that does work in a container. The locker never had one — hypridle connects to Wayland *before* it parses
+anything, and hyprlock has no validate-only mode either. hyprlang errors on unknown keys, so one
 typo is a dead locker *and* a dead display-off timer, and the only symptom is silence. That is
 why `verify.sh` checks `systemctl --user is-active hypridle`, and why it is the most important
-line in the file.
+line in the file. The build asserts file *contents* instead — every command line that ends up
+nested inside another config gets grepped back out — and everything behavioural moved to
+`verify.sh`.
 
 A hyprlock config *can* be parse-checked outside the build, just not inside it — run it against
 a throwaway headless nested sway, which needs no display and cannot touch the real session:
@@ -325,6 +363,27 @@ A good file reaches `Locking session` and `PAMPROMPT: Password:`; a bad one exit
 key it choked on. Two lines on the way out are noise and say nothing about the config —
 `Failed to get backend DRM FD` from the headless backend, and `Unable to receive IPC response`
 from `swaymsg exit` racing sway's own shutdown.
+
+**The greeter gets the same trick, packaged as `just greeter-preview`.** Its compositor is plain
+wlroots, so `WLR_BACKENDS=wayland` makes it open a window inside the running session instead of
+taking a DRM device, and `fakegreet` — greetd's own test harness, from `greetd-fakegreet` —
+stands in for the IPC socket, so there is no PAM and no root. It runs the real greeter against a
+throwaway copy of the *shipped* `greeter.toml`; log in as `user` / `password`, and the sum it
+asks is `9`. This is where the palette gets tuned.
+
+It calls `noctalia-greeter-compositor` directly rather than going through
+`/usr/libexec/noctalia-greeter-nvidia` the way greetd does, and that is forced:
+`noctalia-greeter-session` repoints `XDG_RUNTIME_DIR` and then `unset WAYLAND_DISPLAY`, so a
+nested backend has nothing left to connect to. Symlinking the host socket in as `wayland-0`
+works exactly once — the nested compositor then binds *its* socket over the symlink and the next
+run has nothing to find. So the recipe replicates what that script does and keeps the host's
+runtime dir; the only thing it skips is the wrapper's `WLR_RENDERER` pin, which is meaningless
+nested anyway.
+
+Two limits worth stating. Nested, it exercises no DRM, no KMS and no renderer selection — it
+tells you the login screen looks right, not that it comes up on this GPU. And it can only run
+from a deployment that already *has* the greeter, so it is a re-theming tool, not a pre-flight
+check. Only a reboot answers the GPU question.
 
 **Both locker configs have a floor in the image, at `/etc/xdg/hypr/`.** Neither binary has
 built-in defaults, and `hypridle.service` carries `Restart=on-failure` — so five failures in ten
@@ -403,8 +462,30 @@ rollback.
 - If the greeter ever fails to start you get a black screen, not a TTY: greetd is
   `Restart=always` with `StartLimitBurst=5` and `Conflicts=getty@tty1.service`, so five
   failures in thirty seconds leaves VT 1 dead. `Ctrl+Alt+F2` still works (logind keeps six auto
-  VTs) — from there, point `command =` in `/etc/greetd/config.toml` back at `tuigreet` and
-  `systemctl restart greetd`, or `just rollback`.
+  VTs) — from there, point `command =` in `/etc/greetd/config.toml` back at the `tuigreet` line
+  in its comments and `systemctl restart greetd`, or `just rollback`.
+- **The greeter is the youngest thing in this image and it is on the login path.**
+  noctalia-greeter is four months old, comes from Terra rather than Fedora, and its open
+  upstream bugs cluster on multi-output DRM teardown — atomic-commit failures on a second
+  output, a crash after logout, an F44 coredump — which is precisely this machine's shape, two
+  panels at 81 and 160 PPI. `just greeter-preview` checks the look but not the DRM path. If it
+  misbehaves, the escalation inside `/usr/libexec/noctalia-greeter-nvidia` is
+  `WLR_DRM_NO_MODIFIERS=1` (the wlroots analogue of sway's `-D noscanout`); the exit is the
+  `tuigreet` line above.
+- **The login screen is greyscale but not pixel-identical to the bar.**
+  noctalia-greeter treats `[appearance.palette]` as seed colours and tone-adjusts
+  them, so `#1a1a1a` draws as `#1e1e1e`, `#242424` as `#262626` and `#9a9a9a` as
+  `#adadad` — measured off a rendered greeter. Every shift stays neutral (r=g=b), so it
+  reads as the same desktop; it just is not the same hex. One element ignores the palette
+  outright: the text **caret** draws in Noctalia's own accent (`#cac37f`) and stayed olive
+  even with the palette set to red, and there is no caret or accent key to override.
+- The login screen has **one** typeface, not the desktop's two: noctalia-greeter takes a single
+  `font_family`, so the Inter-for-labels / Hack Nerd Font Mono-for-the-password-field split that
+  the old gtkgreet stylesheet made is gone. `password_style = "random"` masks the length as well
+  as the characters, so there is nothing left to count anyway.
+- **No `bash -l` escape hatch at the login prompt.** The session list is
+  `/usr/share/wayland-sessions` and nothing else, so the old `/etc/greetd/environments` trick of
+  offering a login shell is gone. `Ctrl+Alt+F2`.
 - `loginctl unlock-session` does not dismiss hyprlock — no `SIGUSR1` equivalent. Authenticate
   at the keyboard.
 - Blur is only visible through a translucent surface, which is why `waybar/style.css`,
@@ -412,8 +493,9 @@ rollback.
   opaque does not disable blur, it just hides it — the compositor still pays for it.
 - `rpm -V papirus-icon-theme` reports its `folder*.svg` as modified. That is the black-folder
   recolour, not corruption.
-- Lost with Plasma: Sunshine virtual monitors / KWin screencast, `kscreen-doctor` custom
-  resolutions, `bazzite-powersave`'s qdbus path (`tuned-ppd` still works).
+- Lost with Plasma, which is always removed: Sunshine virtual monitors / KWin screencast,
+  `kscreen-doctor` custom resolutions, `bazzite-powersave`'s qdbus path (`tuned-ppd` still
+  works).
 - Don't use `ujust toggle-nvk` or the `40-nvidia.just` toggles — they do naive string
   substitution on the image URI and will break on a custom ref. `ujust verify-image` is
   safe; it no-ops on custom images.

@@ -2,8 +2,8 @@
 #
 # Typical first run:
 #   just insurance      # pin the current deployment, stop the auto-updater
-#   just build          # boot 1: Sway added, Plasma still there as a fallback
-#   just switch plasma
+#   just build
+#   just switch
 #   sudo systemctl reboot
 
 image_name := "bazzite-sway"
@@ -32,23 +32,19 @@ insurance:
 #   pull="missing"    reuse the cached base locally. CI passes `newer`, without
 #                     which a nightly rebuild could sit on a stale base forever.
 [doc('Parameterised build. `just build` and CI both go through here.')]
-build-image variant tag registry="" pull="missing":
+build-image tag="sway" registry="" pull="missing":
     sudo podman build --pull={{pull}} \
-        --build-arg REMOVE_KDE={{variant}} \
         --build-arg IMAGE_REGISTRY={{registry}} \
         --build-arg IMAGE_TAG={{tag}} \
         -t {{image}}:{{tag}} .
 
-# Boot 1: Sway alongside Plasma, still selectable at the login prompt. Tag: :plasma
-build: (build-image "0" "plasma")
-
-# Boot 2: Plasma removed. Tag: :sway
-build-nokde: (build-image "1" "sway")
+# The image. Plasma removed, SwayFX and noctalia-greeter in its place. Tag: :sway
+build: (build-image "sway")
 
 # Rechunk a built tag. Only needed if `switch` fails with
 # "Missing ostree.final-diffid" (ublue-os/bazzite#1892).
 [doc('Rechunk a built tag locally. Only for the Missing ostree.final-diffid bug.')]
-rechunk tag="plasma":
+rechunk tag="sway":
     sudo rpm-ostree compose build-chunked-oci \
         --bootc --format-version=2 --max-layers=127 \
         --from {{image}}:{{tag}} \
@@ -66,7 +62,7 @@ rechunk tag="plasma":
 # instead of multiple GB: it re-splits the image into per-package layers that
 # stay byte-identical across rebuilds when the packages did not change.
 [doc('Rechunk without a host rpm-ostree, for CI runners.')]
-rechunk-ci tag="plasma":
+rechunk-ci tag="sway":
     #!/usr/bin/bash
     set -euxo pipefail
     src="{{image}}:{{tag}}"
@@ -118,7 +114,7 @@ rechunk-ci tag="plasma":
 # and leaves the old build staged. `bootc upgrade` re-reads the ref and picks up
 # the new digest, so fall through to it.
 [doc('Point the system at a locally built tag. Reboot afterwards.')]
-switch tag="plasma":
+switch tag="sway":
     #!/usr/bin/bash
     set -euo pipefail
     out=$(sudo bootc switch --transport containers-storage {{image}}:{{tag}} 2>&1) || { echo "$out"; exit 1; }
@@ -132,7 +128,7 @@ switch tag="plasma":
     ostree admin status
 
 # Stage without committing to a reboot.
-stage tag="plasma":
+stage tag="sway":
     sudo bootc switch --transport containers-storage --download-only {{image}}:{{tag}}
 
 rollback:
@@ -172,7 +168,7 @@ update-now:
 # ghcr.io/asinglebit to be signed by /etc/pki/containers/asinglebit.pub. bootc stores
 # this whole ref, so plain `just update` stays verified with no extra flags.
 [doc('Point the system at the published image, verifying its signature.')]
-switch-remote tag="plasma":
+switch-remote tag="sway":
     sudo bootc switch ostree-image-signed:docker://{{registry}}/{{image_name}}:{{tag}}
 
 # One-time, and only once: the very first switch onto GHCR.
@@ -182,7 +178,7 @@ switch-remote tag="plasma":
 # policy.json "" catch-all. Reboot, confirm the trust files landed, then use
 # switch-remote from then on. See README "Updating".
 [doc('One-time unverified first switch onto GHCR. Use switch-remote after.')]
-bootstrap-remote tag="plasma":
+bootstrap-remote tag="sway":
     sudo bootc switch {{registry}}/{{image_name}}:{{tag}}
 
 status:
@@ -237,3 +233,68 @@ link-dotfiles:
 
     echo
     echo "Apply:  swaymsg reload"
+
+# Run the real login screen, nested, inside the session you are already in.
+#
+# THIS IS THE ONLY CHECK THAT SEES A LIVE GREETER. The build validates
+# greeter.toml as TOML and runs `noctalia-greeter sessions`, but it cannot start
+# the greeter: the compositor wants DRM and a logind seat, and no subcommand of
+# the greeter reads its config. See the note at the end of
+# build_files/17-noctalia-greeter.sh.
+#
+# Three pieces make it work without touching the login path:
+#
+#   fakegreet             greetd's own test harness, from greetd-fakegreet. It
+#                         creates a socket, exports GREETD_SOCK at it and answers
+#                         the greeter's IPC, so no PAM and no root. Log in as
+#                         `user` / `password`; it also asks `7 + 2:` -- type `9`.
+#   WLR_BACKENDS=wayland  makes the bundled wlroots compositor open a window on
+#                         the current session instead of taking a DRM device.
+#   STATE_DIR             a throwaway seeded from the image's own greeter.toml,
+#                         so this tests the SHIPPED config rather than whatever
+#                         is in /var. Verified to carry the palette: with
+#                         `surface` set to #ff0000 the window turns red.
+#
+# WHY IT CALLS THE COMPOSITOR DIRECTLY, and not
+# /usr/libexec/noctalia-greeter-nvidia like greetd does. That wrapper execs
+# noctalia-greeter-session, which repoints XDG_RUNTIME_DIR at
+# /tmp/noctalia-runtime-$(id -u) and then `unset WAYLAND_DISPLAY` -- so the
+# nested backend has no way to find the host compositor. Symlinking the host
+# socket in as wayland-0 does work exactly once: the nested compositor then binds
+# ITS socket over the symlink and the next run has nothing to connect to. So this
+# replicates what the session script does (dbus-run-session, GREETER_BIN, WLR_LOG)
+# and keeps the host's runtime dir. The one thing that skips is the wrapper's
+# WLR_RENDERER pin, which is meaningless nested anyway.
+#
+# WHAT IT DOES NOT TELL YOU: nested, this exercises no DRM, no KMS and no
+# renderer selection. It validates the palette, the fonts and the session list.
+# Whether the login screen comes up on this GPU is only answered by rebooting.
+[doc('Preview the login screen nested in this session, against a fake greetd.')]
+greeter-preview:
+    #!/usr/bin/bash
+    set -euo pipefail
+
+    # Both live in the image, so this recipe only works from the deployment that
+    # HAS them -- `just build` alone is not enough, and there is deliberately no
+    # fallback that fetches them: a preview tool has no business running binaries
+    # it downloaded outside the image's own signed transaction.
+    if ! command -v fakegreet >/dev/null || ! test -x /usr/bin/noctalia-greeter-compositor; then
+        echo "The running deployment has no greeter to preview."
+        echo "  built already?   just switch && sudo systemctl reboot, then re-run this"
+        echo "  checking a build without rebooting? there is no way to; the build's own"
+        echo "  checks (17-noctalia-greeter.sh) are all you get until you boot it."
+        exit 1
+    fi
+    test -n "${WAYLAND_DISPLAY:-}" || { echo "run this from inside the Sway session"; exit 1; }
+
+    state="$(mktemp -d)"
+    trap 'rm -rf "$state"' EXIT
+    install -m0644 /usr/share/factory/var/lib/noctalia-greeter/greeter.toml "$state/greeter.toml"
+
+    echo "-- previewing $state/greeter.toml -- log in as user/password, the sum is 9 --"
+    NOCTALIA_GREETER_STATE_DIR="$state" \
+    NOCTALIA_GREETER_LOG=stderr \
+    GREETER_BIN=/usr/bin/noctalia-greeter \
+    WLR_BACKENDS=wayland \
+    WLR_LOG="${WLR_LOG:-error}" \
+        fakegreet 'dbus-run-session -- /usr/bin/noctalia-greeter-compositor'

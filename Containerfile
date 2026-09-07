@@ -13,15 +13,16 @@ COPY cosign.pub    /cosign.pub
 
 FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable
 
-# 0 = install SwayFX alongside Plasma (boot 1, keeps a fallback session)
-# 1 = also strip the Plasma session and KDE apps (boot 2)
-ARG REMOVE_KDE=0
-
 # Where this image will be published. Empty means a local build: 40-branding.sh
 # then keeps the containers-storage ref and 50-signing.sh skips the trust setup,
 # so `just build` still produces a working unsigned image with no GHCR involved.
 ARG IMAGE_REGISTRY=""
-ARG IMAGE_TAG="plasma"
+
+# One image, one tag. There used to be a REMOVE_KDE arg and a :plasma variant
+# that kept the Plasma session selectable at the login prompt as first-install
+# insurance; build_files/30-kde-remove.sh now always runs. The tag stays a build
+# arg because 40-branding.sh writes it into image-info.json.
+ARG IMAGE_TAG="sway"
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \

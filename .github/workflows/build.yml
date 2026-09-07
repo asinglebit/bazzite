@@ -1,16 +1,14 @@
 # Rebuild bazzite-sway against current upstream Bazzite, publish to GHCR, sign
 # with cosign.
 #
-# The image this produces is the one `just update` pulls. Both variants build in
-# parallel on their own runners:
+# The image this produces is the one `just update` pulls. There is one of it,
+# tagged :sway -- Plasma is always removed, and the login screen is
+# noctalia-greeter rather than a session picker with two desktops in it.
 #
-#   :plasma  REMOVE_KDE=0  Sway added, Plasma kept as a fallback session
-#   :sway    REMOVE_KDE=1  Plasma stripped
-#
-# There is deliberately no :latest. A bare `bootc switch ghcr.io/<owner>/
-# bazzite-sway` would resolve to it, and whichever variant we pointed it at
-# would be the wrong one half the time -- silently. Without the tag the pull
-# fails and you are told to name the variant you meant.
+# There is deliberately no :latest. Deployments track the :sway ref, so a bare
+# `bootc switch ghcr.io/<owner>/bazzite-sway` resolving to some other tag would
+# be a silent change of what the machine follows. Without the tag the pull fails
+# and you are told to name what you meant.
 name: Build and publish
 
 on:
@@ -33,6 +31,8 @@ on:
 env:
   IMAGE_NAME: bazzite-sway
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  # One variant. Was a build matrix over REMOVE_KDE=0/1 and :plasma/:sway.
+  IMAGE_TAG: sway
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,23 +40,13 @@ concurrency:
 
 jobs:
   build:
-    name: ${{ matrix.tag }} (REMOVE_KDE=${{ matrix.remove_kde }})
+    name: sway
     runs-on: ubuntu-24.04
 
     permissions:
       contents: read      # checkout
       packages: write     # push to ghcr.io
       # No id-token: signing is with a key, not keyless, so no OIDC is needed.
-
-    strategy:
-      # A broken KDE-removal list must not take the :plasma build down with it.
-      fail-fast: false
-      matrix:
-        include:
-          - tag: plasma
-            remove_kde: 0
-          - tag: sway
-            remove_kde: 1
 
     steps:
       - name: Checkout
@@ -105,8 +95,7 @@ jobs:
       - name: Build
         run: |
           just build-image \
-            '${{ matrix.remove_kde }}' \
-            '${{ matrix.tag }}' \
+            '${{ env.IMAGE_TAG }}' \
             '${{ steps.reg.outputs.registry }}' \
             newer
 
@@ -115,7 +104,7 @@ jobs:
       # hundreds of MB rather than multiple GB. Must precede the push: it
       # rewrites the manifest, and the signature is over the pushed digest.
       - name: Rechunk
-        run: just rechunk-ci '${{ matrix.tag }}'
+        run: just rechunk-ci '${{ env.IMAGE_TAG }}'
 
       - name: Disk space after rechunk
         if: always()
@@ -124,7 +113,7 @@ jobs:
       # Runs after the rechunk so it also proves the rechunk preserved /etc.
       - name: Check the built image
         env:
-          TAG: ${{ matrix.tag }}
+          TAG: ${{ env.IMAGE_TAG }}
           REGISTRY: ${{ steps.reg.outputs.registry }}
         run: |
           set -euo pipefail
@@ -159,9 +148,9 @@ jobs:
           test -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
           test -e /usr/share/wayland-sessions/sway.desktop
 
-          # The terminal. ghostty comes from Terra, the only third-party repo
-          # this build touches, so a Terra outage or a rename must fail here
-          # rather than land as a desktop with no working $mod+Return. The
+          # The terminal. ghostty comes from Terra -- as does noctalia-greeter
+          # above -- so a Terra outage or a rename must fail here rather than
+          # land as a desktop with no working $mod+Return. The
           # grep covers the sed in 10-sway-install.sh silently no-opping if
           # sway-config-fedora ever reformats that line.
           test -x /usr/bin/ghostty
@@ -229,17 +218,46 @@ jobs:
           test -L /usr/lib/systemd/user/sway-session.target.wants/swaync.service
           test -x /usr/bin/swaync
 
-          # The greeter. greetd now runs a Sway instance hosting gtkgreet, so
-          # /etc carries three more files the login screen cannot start without
-          # -- and this step runs after the rechunk precisely to prove /etc
-          # survived it. tuigreet is the retained fallback.
-          test -f /etc/greetd/sway-greeter.conf
-          test -s /etc/gtkgreet/style.css
-          test -s /etc/greetd/environments
-          grep -q '^start-sway$' /etc/greetd/environments
-          grep -q 'start-sway -c /etc/greetd/sway-greeter.conf' /etc/greetd/config.toml
-          command -v gtkgreet >/dev/null
+          # The greeter. noctalia-greeter brings its own wlroots 0.20
+          # compositor, so nothing hosts it and /etc carries only greetd's own
+          # config -- but the wrapper and the factory copy of greeter.toml are
+          # both load-bearing, and this step runs after the rechunk precisely to
+          # prove they survived it. tuigreet is the retained fallback; gtkgreet
+          # is gone with the sway greeter that used to host it.
+          rpm -q noctalia-greeter greetd-fakegreet >/dev/null
+          test -x /usr/bin/noctalia-greeter-session
+          test -x /usr/bin/noctalia-greeter-compositor
+          test -d /usr/share/noctalia-greeter/assets
+          test -x /usr/libexec/noctalia-greeter-nvidia
+          grep -q 'WLR_RENDERER:=gles2' /usr/libexec/noctalia-greeter-nvidia
+          grep -q '^command = "/usr/libexec/noctalia-greeter-nvidia"$' /etc/greetd/config.toml
+          # The config the greeter is copied by tmpfiles.d at boot, and the one
+          # line proving it is the greyscale copy rather than something stock.
+          test -s /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
+          grep -q '^surface *= *"#1a1a1a"$' /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
+          grep -q '^C+ /var/lib/noctalia-greeter/greeter.toml' /usr/lib/tmpfiles.d/bazzite-sway.conf
+          # The SELinux alias, without which the state directory lands as
+          # var_lib_t and xdm_t cannot write it -- a blank login screen.
+          grep -q '^/var/lib/noctalia-greeter /var/lib/greetd$' \
+            /etc/selinux/targeted/contexts/files/file_contexts.subs
+          # wlroots 0.20 for the greeter, 0.19 for swayfx, both from Fedora.
+          greeter_libs="$(ldd /usr/bin/noctalia-greeter-compositor)"
+          [[ "$greeter_libs" == *libwlroots-0.20.so* ]]
+          [[ "$(rpm -q --queryformat '%{VENDOR}' wlroots)" == "Fedora Project" ]]
+          # The session list's only source now: no /etc/greetd/environments. Run
+          # the greeter's own enumerator, which needs no display and no seat, so
+          # this is behavioural rather than a grep over a desktop entry.
+          grep -q '^Exec=start-sway$' /usr/share/wayland-sessions/sway.desktop
+          # This runs on the FINISHED image, unlike the same call in
+          # 17-noctalia-greeter.sh, so it can require that Sway is the only
+          # entry: a Plasma line here means plasma.desktop outlived the KDE
+          # removal and the login screen offers a session that cannot start.
+          greeter_sessions="$(noctalia-greeter sessions)"
+          [[ "$greeter_sessions" == *Sway* ]]
+          [[ "$greeter_sessions" != *Plasma* ]]
+          test ! -e /etc/greetd/environments
           command -v tuigreet >/dev/null
+          ! command -v gtkgreet >/dev/null
 
           # Theming. papirus-folders is the SECOND artifact in this build
           # fetched from a GitHub release rather than a signed repo, so it gets
@@ -290,7 +308,7 @@ jobs:
         if: github.event_name != 'pull_request'
         id: push
         env:
-          TAG: ${{ matrix.tag }}
+          TAG: ${{ env.IMAGE_TAG }}
           REGISTRY: ${{ steps.reg.outputs.registry }}
         run: |
           set -euxo pipefail
@@ -354,7 +372,7 @@ jobs:
         env:
           DEST: ${{ steps.push.outputs.dest }}
           DIGEST: ${{ steps.push.outputs.digest }}
-          TAG: ${{ matrix.tag }}
+          TAG: ${{ env.IMAGE_TAG }}
         run: |
           {
             echo "### \`${TAG}\` published"
