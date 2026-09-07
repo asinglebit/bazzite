@@ -45,7 +45,14 @@ dnf5 --exclude=sway-config-upstream install -y \
     playerctl \
     network-manager-applet \
     blueman \
-    wev
+    wev \
+    SwayNotificationCenter \
+    cliphist \
+    swappy \
+    gtkgreet \
+    adw-gtk3-theme \
+    papirus-icon-theme-dark \
+    rsms-inter-fonts
 
 # The terminal.
 #
@@ -119,6 +126,90 @@ test -f /usr/share/fonts/hack-nerd-fonts/HackNerdFontMono-Regular.ttf
 fc-list -q 'Hack Nerd Font Mono'
 
 
+# --- GTK theming, fonts and icons --------------------------------------------
+#
+# Asserted for the same reason as the font above: none of these failing breaks
+# the build, they just silently fall back at runtime to something that looks
+# almost right.
+#
+# adw-gtk3 is structural rather than cosmetic here. swaync is GTK4 +
+# libadwaita; wlogout, swappy, Thunar, pavucontrol and blueman-manager are all
+# GTK3. Without it the new UI is split across two GTK eras.
+test -d /usr/share/themes/adw-gtk3-dark
+test -d /usr/share/icons/Papirus-Dark
+fc-list -q 'Inter'
+
+# Black folder icons.
+#
+# papirus-folders is not packaged in any repo this image trusts, so it is
+# vendored the same way the Hack font above is: pinned by version AND by
+# checksum, fetched at a tag rather than as a generated tarball so the hash is
+# stable. This and the font are the only two artifacts in the build that do not
+# come from a GPG-verified repo.
+#
+# It has to run HERE, in the build, and not as a post-install step: the script
+# works by replacing folder*.svg with symlinks inside
+# /usr/share/icons/Papirus/*/places/, which is inside the ostree deployment and
+# read-only at runtime.
+PAPIRUS_FOLDERS_VERSION=1.14.0
+PAPIRUS_FOLDERS_SHA256=b30a6848a00690302accffc050549218b0b114d3178b28bd3a16891817821b06
+
+curl -fsSL -o /tmp/papirus-folders \
+    "https://raw.githubusercontent.com/PapirusDevelopmentTeam/papirus-folders/v${PAPIRUS_FOLDERS_VERSION}/papirus-folders"
+echo "${PAPIRUS_FOLDERS_SHA256}  /tmp/papirus-folders" | sha256sum -c -
+chmod +x /tmp/papirus-folders
+
+# -t Papirus, never Papirus-Dark. Fedora puts the colour variants ONLY in the
+# main papirus-icon-theme -- 391 files match folder-black there against exactly
+# one (a lone 16x16) in papirus-icon-theme-dark, which ships nothing at all
+# under 48x48/places/. papirus-folders enumerates the colours it offers from
+# folder-<color>-documents.svg in 48x48/places/, so aimed at the dark theme it
+# finds no colours whatsoever. papirus-icon-theme-dark hard-Requires the main
+# package and inherits its places/ through index.theme, so recolouring the
+# parent gives Papirus-Dark black folders for free.
+#
+# This is the assertion that the variants are actually installed, and it fails
+# loudly if that packaging split ever changes.
+#
+# Captured into a variable and matched with a here-string, NOT piped into
+# `grep -q`. That pipe is the exact trap the fc-list note further up this file
+# describes, and it is fatal here: grep -q exits on its first match,
+# papirus-folders keeps writing into the closed pipe, takes SIGPIPE, and the
+# `set -o pipefail` at the top turns a SUCCESSFUL check into exit 141 -- a
+# passing assertion that kills the build.
+papirus_colours="$(/tmp/papirus-folders -t Papirus -l)"
+grep -qw black <<<"${papirus_colours}"
+
+# -o  do NOT write the state file. It would land in /var/lib/papirus-folders,
+#     and /var content in a bootc image is only applied on INITIAL provisioning
+#     -- exactly the trap system_files/usr/lib/tmpfiles.d/bazzite-sway.conf
+#     exists to work around. Nothing reads it at runtime; the symlinks are the
+#     state.
+# -u  rebuild the icon caches. Papirus ships a prebuilt icon-theme.cache and a
+#     stale one shadows the new symlinks. v1.14.0 updates siblings too, which is
+#     what reaches Papirus-Dark.
+/tmp/papirus-folders -t Papirus -C black -o -u -v
+
+# The mapping is not a plain folder-* rename -- the variant set is ~81 names
+# across five sizes, ~400 symlinks, and it covers user-* as well (the script
+# uses prefixes "folder-$color" and "user-$color"). Assert one of each: a
+# folder, and the Home icon that only the user-* half provides.
+# No pipes here either -- bash pattern matching on a captured value, which
+# cannot SIGPIPE at all.
+test -L /usr/share/icons/Papirus/48x48/places/folder.svg
+[[ "$(readlink /usr/share/icons/Papirus/48x48/places/folder.svg)"    == *folder-black* ]]
+[[ "$(readlink /usr/share/icons/Papirus/48x48/places/user-home.svg)" == *user-black*   ]]
+
+# Not installed into the image. The symlinks are the product; nothing at runtime
+# needs the tool.
+rm -f /tmp/papirus-folders
+
+# Re-run on every nightly rebuild, so a papirus-icon-theme update that restores
+# the stock blue folder.svg is re-blackened in the same build rather than
+# shipping. It does mean `rpm -V papirus-icon-theme` reports those files as
+# modified -- that is this, not corruption.
+
+
 # Point sway's $term at ghostty.
 #
 # This has to happen at the source, not in a config.d drop-in. sway expands
@@ -131,6 +222,25 @@ fc-list -q 'Hack Nerd Font Mono'
 # get foot.
 sed -i 's|^set \$term foot$|set $term ghostty|' /etc/sway/config
 grep -q '^set \$term ghostty$' /etc/sway/config
+
+# Give the launcher window switching.
+#
+# /etc/sway/config builds $menu as
+#     rofi -terminal '$term' -show combi -combi-modes drun#run -modes combi
+# and carries the comment "TODO: add window with the next release of
+# rofi-wayland". F44 ships rofi 2.0.0, where that release has landed --
+# `rofi -h` reports "Detected modes: +window +run +ssh" -- so the TODO is
+# simply stale.
+#
+# Same reason as the $term rewrite above for doing it here rather than in a
+# config.d drop-in: sway expands `set` variables at parse time, so $menu is
+# already baked into the $mod+d binding long before the layered include reads
+# ~/.config/sway/config.d/.
+#
+# Asserted because a silent no-op is invisible until you press $mod+d and get
+# only applications.
+sed -i 's|-combi-modes drun#run|-combi-modes drun#run#window|' /etc/sway/config
+grep -q 'combi-modes drun#run#window' /etc/sway/config
 
 # The polkit authentication agent.
 #
@@ -167,6 +277,27 @@ install -Dpm0644 \
 install -d /usr/lib/systemd/user/sway-session.target.wants
 ln -sfn ../polkit-mate-authentication-agent-1.service \
     /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
+
+# The notification daemon.
+#
+# mako and swaync BOTH ship a D-Bus service file declaring
+# Name=org.freedesktop.Notifications -- fr.emersion.mako.service and
+# org.erikreider.swaync.service. Different filenames, so there is no RPM
+# conflict and both install cleanly, but which one D-Bus activates for a
+# duplicated name is not something to build a desktop on.
+#
+# So do not rely on activation at all. Starting swaync from the session target
+# means it owns the bus name before any application can ask for it, and mako's
+# activation entry is then never reached. Same reasoning, same mechanism as the
+# polkit agent above.
+#
+# mako stays installed and manually startable (`systemctl --user start mako`
+# after stopping swaync) -- the foot precedent. dotfiles/mako/config themes it
+# so that fallback is not the stock blue box either.
+ln -sfn ../swaync.service \
+    /usr/lib/systemd/user/sway-session.target.wants/swaync.service
+test -L /usr/lib/systemd/user/sway-session.target.wants/swaync.service
+test -f /usr/lib/systemd/user/swaync.service
 
 # nvidia-settings' autostart entry runs `nvidia-settings --load-config-only`,
 # which is an X11-only operation and exits 1 under a Wayland session. Harmless,
@@ -205,8 +336,15 @@ cat >> /etc/sway/environment <<'ENVEOF'
 # flicker and black frames.
 SWAY_EXTRA_ARGS="$SWAY_EXTRA_ARGS --unsupported-gpu -D noscanout"
 
-# Vulkan renderer is the recommended one on NVIDIA.
-WLR_RENDERER=vulkan
+# GLES2, not Vulkan, and this is a SwayFX constraint rather than a preference.
+# SwayFX implements every effect (blur, corner radius, shadows, dim-inactive) in
+# its own fx_renderer, which is GLES2-only -- there is no Vulkan code path. Left
+# at vulkan you get a compositor that starts, works, and silently draws none of
+# the effects, which is a nasty thing to debug from the config end.
+#
+# The cost is real and worth stating: vulkan is the renderer wlroots recommends
+# on NVIDIA, and this gives it up. That is the price of build_files/15-swayfx.sh.
+WLR_RENDERER=gles2
 
 # VA-API through the already-installed libva-nvidia-driver.
 LIBVA_DRIVER_NAME=nvidia

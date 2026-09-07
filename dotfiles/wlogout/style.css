@@ -1,0 +1,75 @@
+/*
+ * Greyscale wlogout -- the $mod+Shift+e power menu.
+ *
+ * Replaces /etc/wlogout/style.css wholesale (wlogout takes the first style.css
+ * it finds: this one, then /etc/wlogout/). What it replaces was a #1E1E1E grid
+ * with #3700B3 purple hover, and six full-colour PNG icons out of
+ * /usr/share/wlogout/icons/.
+ *
+ * Those PNGs are gone here. The button labels in ../wlogout/layout carry Nerd
+ * Font glyphs instead, so the power menu is drawn in the same face as the bar
+ * rather than in stock icon art -- the same call
+ * dotfiles/autostart/blueman.desktop made when it retired blueman's
+ * unthemeable tray PNG in favour of waybar's own bluetooth module.
+ *
+ * Palette matches waybar/style.css:
+ *   #1a1a1a  the scrim, at alpha -- the desktop stays visible behind it
+ *   #242424  button fill
+ *   #2e2e2e  hairline, and the hover fill
+ *   #9a9a9a  base text
+ *   #d8d8d8  hovered/focused text
+ *   #ffffff  the two destructive actions on hover
+ */
+
+* {
+    background-image: none;
+    box-shadow: none;
+    /* Hack Nerd Font Mono so the glyphs in layout come from the same file as
+     * the text beside them, at one cell each. */
+    font-family: "Hack Nerd Font Mono", monospace;
+    font-size: 13px;
+}
+
+/* The scrim. 0.85 rather than opaque so it reads as an overlay on the desktop
+ * rather than as a screen of its own -- and so it is obvious at a glance that
+ * nothing has been closed yet. */
+window {
+    background-color: rgba(26, 26, 26, 0.85);
+}
+
+button {
+    background-color: #242424;
+    color: #9a9a9a;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;         /* corner_radius 8, as everywhere else */
+    margin: 8px;
+    /* Keyboard focus has to be visible without moving anything, so the border
+     * colour changes rather than its width -- the same reason
+     * waybar/style.css uses an inset box-shadow for the focused workspace
+     * instead of a border. */
+    outline-style: none;
+}
+
+button:hover {
+    background-color: #2e2e2e;
+    color: #d8d8d8;
+    border-color: #3a3a3a;
+}
+
+button:focus {
+    background-color: #2e2e2e;
+    color: #d8d8d8;
+    border-color: #d8d8d8;
+}
+
+/* The two that cannot be undone go to full brightness on hover. Greyscale has
+ * no red, so this is how "are you sure" gets said. Note these only fire on
+ * hover/focus -- at rest the grid is uniform, because a permanently highlighted
+ * Shut down button is just noise. */
+#shutdown:hover,
+#shutdown:focus,
+#reboot:hover,
+#reboot:focus {
+    color: #ffffff;
+    border-color: #ffffff;
+}

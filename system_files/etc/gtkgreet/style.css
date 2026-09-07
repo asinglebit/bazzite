@@ -1,0 +1,153 @@
+/*
+ * Greyscale gtkgreet -- the login screen, painted from the desktop's palette.
+ *
+ * Replaces the example at /usr/share/doc/gtkgreet or the packaged
+ * /etc/gtkgreet/gtkgreet.css, which styles #body from @theme_bg_color and an
+ * Adwaita CSD shadow. gtkgreet is passed --style, so this file is the whole
+ * stylesheet rather than an overlay.
+ *
+ * gtkgreet is GTK3, so adw-gtk3-dark is already underneath this and supplies
+ * the widget shapes; only the colours and the two typefaces are set here.
+ *
+ * Palette, dark to light. Identical to dotfiles/waybar/style.css:
+ *
+ *   #1a1a1a  window background -- the same surface as the bar, and the same
+ *            colour sway-greeter.conf paints, so nothing flashes on startup
+ *   #242424  entry fill -- the desktop grey
+ *   #2e2e2e  hairline
+ *   #5a5a5a  dim   - placeholder text
+ *   #9a9a9a  base  - labels
+ *   #d8d8d8  bright- typed text, focus
+ *   #ffffff  alert - a failed login. Greyscale has no red, so this signals
+ *            with maximum brightness, exactly as swaylock/config does.
+ *
+ * Two typefaces, matching the desktop: Inter for UI labels, Hack Nerd Font Mono
+ * wherever characters are counted -- the username and password fields, so the
+ * login screen agrees with the terminal about what a character looks like.
+ */
+
+window {
+    background-color: #1a1a1a;
+}
+
+/* gtkgreet wraps its form in #body. Flat: no shadow, no rounding, no border --
+ * the desktop this logs into draws no window chrome either. */
+#body {
+    background-color: #1a1a1a;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    padding: 48px;
+    color: #9a9a9a;
+    font-family: Inter, sans-serif;
+    font-size: 11pt;
+}
+
+label {
+    color: #9a9a9a;
+    font-family: Inter, sans-serif;
+}
+
+/* The clock, if gtkgreet is showing one. Bright and large, the one element
+ * meant to be read across the room. */
+#clock {
+    color: #d8d8d8;
+    font-family: Inter, sans-serif;
+    font-size: 28pt;
+    font-weight: 200;
+}
+
+/* Username and password. Monospace, because these are character-counted
+ * fields. 1px hairline rather than a GTK frame, matching the bar's dividers
+ * and rofi's window border. */
+entry {
+    background-color: #242424;
+    color: #d8d8d8;
+    caret-color: #d8d8d8;
+    font-family: "Hack Nerd Font Mono", monospace;
+    border: 1px solid #2e2e2e;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 8px 10px;
+    min-height: 0;
+}
+
+entry:focus {
+    border-color: #d8d8d8;
+    background-color: #242424;
+}
+
+entry placeholder,
+entry:disabled {
+    color: #5a5a5a;
+}
+
+/* A rejected password. Brightness, not hue. */
+entry.error,
+entry:invalid {
+    border-color: #ffffff;
+    color: #ffffff;
+}
+
+/* The session dropdown, fed by /etc/greetd/environments, and the login
+ * button. Flat until hovered -- the only filled block on screen is the thing
+ * under the pointer, the same split waybar makes between a focused workspace
+ * and a hovered one. */
+button,
+combobox button.combo {
+    background-image: none;
+    background-color: #242424;
+    color: #9a9a9a;
+    font-family: Inter, sans-serif;
+    border: 1px solid #2e2e2e;
+    border-radius: 0;
+    box-shadow: none;
+    text-shadow: none;
+    padding: 8px 14px;
+    min-height: 0;
+}
+
+button:hover,
+combobox button.combo:hover {
+    background-color: #2e2e2e;
+    color: #d8d8d8;
+}
+
+button:active,
+button:checked {
+    background-color: #2e2e2e;
+    color: #ffffff;
+}
+
+/* The dropdown list itself. Same surface as the window so the popup reads as
+ * part of the form rather than as a floating panel. */
+popover,
+popover contents,
+menu,
+combobox window.popup {
+    background-color: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    color: #9a9a9a;
+}
+
+popover label,
+menuitem label {
+    color: #9a9a9a;
+}
+
+menuitem:hover {
+    background-color: #2e2e2e;
+    color: #d8d8d8;
+}
+
+/* gtkgreet's error banner (bad password, session failed to start). */
+infobar,
+infobar.error {
+    background-color: #242424;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+}
+
+infobar label {
+    color: #ffffff;
+}

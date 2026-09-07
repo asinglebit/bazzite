@@ -1,0 +1,34 @@
+[Desktop Entry]
+Type=Application
+Name=NetworkManager Applet
+Exec=nm-applet
+# Overrides /etc/xdg/autostart/nm-applet.desktop by basename, exactly as the
+# blueman entry beside this one does. Hidden=true means "treat as if it does
+# not exist", so systemd's xdg-autostart generator stops creating
+# app-nm\x2dapplet@autostart.service.
+#
+# The applet's only visible job on this desktop was a tray icon, and it was a
+# DUPLICATE: waybar's own network module already draws the link state, in the
+# bar font, in the bar's greyscale, and clicking it opens the control centre.
+# The applet's icon was the second wifi glyph on the right-hand side, in
+# full-colour hicolor artwork that no stylesheet here can reach -- GTK3 CSS has
+# no desaturate -- and its click opened an unthemed GTK menu.
+#
+# What the applet also is, and this is the part worth knowing before deleting
+# this file: a NetworkManager SECRET AGENT. Without it, nothing in the session
+# can answer NM when a connection needs a credential it does not already have.
+# That is survivable here because the graphical path to joining a network is
+# sway/rofi-wifi.sh, which prompts through rofi and hands the password to
+# `nmcli device wifi connect ... password ...` -- and nmcli registers its own
+# agent for the duration of that call. So WPA-PSK works.
+#
+# What does NOT work without an agent: 802.1X/enterprise wifi, and any VPN that
+# stores its secrets per-session rather than in the connection profile. If one
+# of those ever matters, delete this file, `just link-dotfiles`, log out and
+# back in -- and then hide the icon instead by keeping the applet running while
+# ignoring its tray item, which waybar cannot do, so the honest answer is to
+# drop the `network` module from the bar for the duration.
+#
+# Polkit prompts are unaffected: those come from the polkit agent that
+# /usr/share/sway/config.d/95-autostart-policykit-agent.conf starts.
+Hidden=true

@@ -23,6 +23,47 @@ head_ "Session"
 swaymsg -t get_version >/dev/null 2>&1 && ok "sway IPC responding ($(swaymsg -t get_version -r | jq -r .human_readable 2>/dev/null))" \
     || no "sway IPC not responding"
 
+head_ "Compositor (SwayFX)"
+rpm -q --quiet swayfx && ok "swayfx installed ($(rpm -q swayfx))" \
+    || no "swayfx NOT installed -- effects config in 25-effects.conf will fail to parse"
+# The staleness tripwire, mirrored from build_files/15-swayfx.sh. The COPR RPM
+# is a 2025-07 fc43 build linking libwlroots-0.19; F44 still ships that as a
+# compat package, but nobody has rebuilt swayfx in over a year.
+ldd /usr/bin/sway 2>/dev/null | grep -q 'libwlroots-0.19.so' \
+    && ok "sway links libwlroots-0.19 (the ABI swayfx was built against)" \
+    || no "sway does NOT link libwlroots-0.19 -- swayfx ABI drift, rebuild needed"
+ldd /usr/bin/sway 2>/dev/null | grep -q 'libscenefx' \
+    && ok "sway links libscenefx (the effects renderer)" || no "libscenefx missing"
+grep -q '^WLR_RENDERER=gles2$' /etc/sway/environment \
+    && ok "WLR_RENDERER=gles2 (SwayFX fx_renderer is GLES2-only)" \
+    || no "WLR_RENDERER is not gles2 -- SwayFX will run and draw NO effects, silently"
+# Proof the effects config was actually parsed, not just present on disk.
+#
+# NOT via `swaymsg -t get_config`, which is what this used to grep for
+# corner_radius. That reply is the top-level /etc/sway/config and nothing else
+# -- sway never concatenates the includes into it -- so the check could not pass
+# whatever the session was doing, and spent its life reporting a warning that
+# was never real. Read it back and you get 7921 chars against a 7923-byte file.
+#
+# What sway does leave behind is the include list layered-include generated for
+# THIS session, under /run/user/$UID/sway/. A file in that list which failed to
+# parse would have raised the swaynag error bar, which the next check catches,
+# so "listed" plus "no error bar" is the proof.
+if grep -qs '/sway/config\.d/25-effects\.conf' /run/user/"$(id -u)"/sway/layered-include-*.conf; then
+    ok "25-effects.conf is in this session's include list"
+else
+    meh "25-effects.conf not in this session's include list (reload after link-dotfiles?)"
+fi
+# sway conflates config WARNINGS with errors: an overwritten binding, or an
+# i3-only directive such as client.background, raises the same "There are errors
+# in your config file" swaynag bar that a syntax error does. Nothing else in
+# this desktop spawns swaynag -- $mod+Shift+e is wlogout now -- so a running one
+# means the config raised something. `bindsym --no-warn` is how a deliberate
+# override says it meant it.
+pgrep -x swaynag >/dev/null \
+    && no "sway raised a config error/warning bar -- read it, or: sway --validate -d" \
+    || ok "sway config raised no error or warning bar"
+
 head_ "systemd user session (RHBZ 2481764 -- the portal depends on this)"
 systemctl --user is-active graphical-session.target >/dev/null 2>&1 \
     && ok "graphical-session.target active" \
@@ -37,6 +78,32 @@ busctl --user list 2>/dev/null | grep -q 'impl.portal.desktop.wlr' \
 head_ "Display manager"
 dm=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)
 [[ "${dm}" == *greetd* ]] && ok "display-manager -> greetd" || no "display-manager -> ${dm:-none}"
+
+head_ "Greeter (gtkgreet in a Sway instance)"
+# greetd runs a Sway instance hosting gtkgreet rather than tuigreet on the VT,
+# so the greeter's size comes from the output rather than from a console bitmap
+# cell. Each of these is a blank login screen if it fails.
+test -f /etc/greetd/sway-greeter.conf \
+    && ok "greeter compositor config present" \
+    || no "no /etc/greetd/sway-greeter.conf -- greetd starts a Sway with no config and shows nothing"
+grep -q 'start-sway -c /etc/greetd/sway-greeter.conf' /etc/greetd/config.toml \
+    && ok "greetd launches the greeter via start-sway" \
+    || no "greetd is not calling start-sway -- a bare sway hits the NVIDIA guard and VT 1 dies"
+test -s /etc/gtkgreet/style.css \
+    && ok "gtkgreet stylesheet present" || no "no /etc/gtkgreet/style.css -- greeter falls back to stock GTK"
+test -s /etc/greetd/environments \
+    && ok "session list present" || no "no /etc/greetd/environments -- gtkgreet has nothing to log into"
+grep -q '^start-sway$' /etc/greetd/environments \
+    && ok "start-sway offered as a session" || no "start-sway not in /etc/greetd/environments"
+# -C validates without touching a device; --unsupported-gpu because sway runs
+# its NVIDIA guard before it validates anything.
+sway --unsupported-gpu -C -c /etc/greetd/sway-greeter.conf >/dev/null 2>&1 \
+    && ok "greeter config parses" \
+    || no "greeter config does NOT parse -- greetd will crash-loop off its 5 restarts, leaving VT 1 with no getty"
+command -v gtkgreet >/dev/null && ok "gtkgreet present" || no "gtkgreet MISSING"
+# Kept, unbound, as the fallback greeter -- see /etc/greetd/config.toml.
+command -v tuigreet >/dev/null && ok "tuigreet present (fallback)" \
+    || no "tuigreet MISSING -- no fallback if gtkgreet fails"
 
 head_ "Graphics"
 swaymsg -t get_outputs -r 2>/dev/null | jq -r '.[] | "  output \(.name) \(.current_mode.width)x\(.current_mode.height)@\(.current_mode.refresh/1000)Hz  active=\(.active)"' 2>/dev/null
@@ -55,13 +122,56 @@ pgrep -f polkit-mate-authentication-agent >/dev/null && ok "polkit agent running
     || no "polkit agent not wired to sway-session.target -- it will not return on next login"
 pgrep -x gnome-keyring-d >/dev/null && ok "gnome-keyring running (Secret portal backend)" \
     || meh "gnome-keyring not running -- app passwords will not persist"
-pgrep -x mako >/dev/null && ok "mako running" || meh "mako not running"
+pgrep -x swaync >/dev/null && ok "swaync running (notification daemon)" \
+    || no "swaync NOT running -- no notifications, and no volume/brightness OSD"
+# Both mako and swaync ship a D-Bus service file claiming
+# org.freedesktop.Notifications. swaync is started from sway-session.target so
+# it takes the name first; if mako is up instead, that ordering broke.
+pgrep -x mako >/dev/null \
+    && no "mako is running INSTEAD of swaync -- the bus name was taken by the wrong daemon" \
+    || ok "mako correctly idle (installed as the fallback only)"
 pgrep -x waybar >/dev/null && ok "waybar running" || meh "waybar not running"
 # foot is still in this list on purpose. It is no longer bound to anything, but
 # it is kept installed as a fallback: ghostty is GPU-accelerated and this is an
 # NVIDIA box, so losing it would mean no terminal at all.
 for b in ghostty foot rofi Thunar grimshot wl-copy swaylock blueman-manager nm-applet; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
+done
+
+# The bar's two helper scripts. Both are dotfiles, so a session that has never
+# had `just link-dotfiles` run against it will fail these -- which is the point:
+# without stats.sh the hardware glyph shows waybar's "unknown" and without
+# toggle.sh every quick toggle in the notification panel silently reports off.
+#
+# The check is the OUTPUT, not the file: stats.sh has to emit a parseable waybar
+# object (waybar keeps the last good value when a json module prints garbage, so
+# a broken script leaves a stale tooltip with nothing to say it is stale), and
+# toggle.sh has to answer `state` with exactly true or false, which is what
+# swaync's update-command consumes.
+if [ -x "$HOME/.config/waybar/stats.sh" ] \
+   && "$HOME/.config/waybar/stats.sh" json | python3 -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if d.get("text") and "tooltip" in d else 1)' 2>/dev/null; then
+    ok "waybar/stats.sh emits a valid module object"
+else
+    no "waybar/stats.sh missing or not emitting valid JSON -- the bar's hardware glyph and its tooltip are dead (just link-dotfiles?)"
+fi
+for t in wifi bluetooth idle; do
+    case $([ -x "$HOME/.config/swaync/toggle.sh" ] && "$HOME/.config/swaync/toggle.sh" "$t" state 2>/dev/null) in
+        true|false) ok "swaync toggle.sh $t reports state" ;;
+        *) no "swaync toggle.sh $t does NOT print true/false -- that toggle will show off whatever the hardware says" ;;
+    esac
+done
+
+# nm-applet and blueman-applet are both INSTALLED and both deliberately not
+# autostarted: waybar draws their state itself, in the bar font, and their own
+# tray icons are full-colour artwork no stylesheet here can reach. Hidden=true in
+# ~/.config/autostart overrides /etc/xdg/autostart by basename. If one of these
+# comes back, the symptom is a duplicate icon in the tray rather than an error.
+for a in nm-applet blueman; do
+    if grep -qs '^Hidden=true' "$HOME/.config/autostart/$a.desktop"; then
+        ok "$a applet suppressed (Hidden=true)"
+    else
+        meh "$a applet not suppressed -- expect a duplicate, unthemeable tray icon"
+    fi
 done
 
 # Hack Nerd Font Mono is vendored from the upstream release by
@@ -82,6 +192,107 @@ grep -q '^set \$term ghostty$' /etc/sway/config \
 infocmp xterm-ghostty >/dev/null 2>&1 && ok "xterm-ghostty terminfo present" \
     || no "xterm-ghostty terminfo MISSING -- ssh and curses apps will misbehave"
 
+head_ "Locker (hyprlock + hypridle)"
+# THE important line in this file.
+#
+# Neither hyprlock.conf nor hypridle.conf can be validated at build time --
+# hypridle connects to Wayland before it parses anything, and hyprlock has no
+# validate-only mode -- and hyprlang ERRORS on unknown keys. So a typo in either
+# file means the unit exited at startup, and the only symptom is silence: no
+# auto-lock, no display blanking, discovered five minutes after you walk away.
+if systemctl --user is-active --quiet hypridle; then
+    ok "hypridle active -- idle lock and DPMS are armed"
+else
+    no "hypridle NOT active -- NOTHING will lock or blank this session"
+    printf '        last log lines:\n'
+    journalctl --user -u hypridle -b --no-pager -n 5 2>/dev/null | sed 's/^/        /'
+    # Restart=on-failure plus systemd's default start limit means five failures
+    # in ten seconds wedge the unit for the rest of the session. That is what
+    # happens when the config is linked AFTER login: hypridle died on a missing
+    # ~/.config/hypr/hypridle.conf before `just link-dotfiles` created it, and
+    # no later reload revives it. Clearing the limit is a separate step from
+    # starting it again.
+    printf '        wedged by the start limit? systemctl --user reset-failed hypridle \\\n'
+    printf '                                   && systemctl --user start hypridle\n'
+fi
+command -v hyprlock >/dev/null && ok "hyprlock present" || no "hyprlock MISSING"
+# Neither binary has built-in defaults, so SOME config has to be findable or
+# there is no locker at all. The image ships the floor at /etc/xdg/hypr
+# (16-hyprlock.sh) -- the last entry in hyprutils' search order, so a linked
+# dotfile shadows it. Without it, a login before `just link-dotfiles` never
+# locks and never blanks.
+for c in hypridle hyprlock; do
+    test -s "/etc/xdg/hypr/$c.conf" \
+        && ok "image fallback /etc/xdg/hypr/$c.conf present" \
+        || no "image fallback $c.conf MISSING -- a login before link-dotfiles has no locker"
+done
+hl_user="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprlock.conf"
+if test -s "$hl_user"; then
+    ok "hyprlock.conf from dotfiles (shadows the image fallback)"
+    hl_live="$hl_user"
+elif test -s /etc/xdg/hypr/hyprlock.conf; then
+    meh "no dotfiles hyprlock.conf -- running the image fallback (run: just link-dotfiles)"
+    hl_live=/etc/xdg/hypr/hyprlock.conf
+else
+    no "no hyprlock.conf anywhere -- hyprlock exits 1 and there is NO lock screen"
+    hl_live=""
+fi
+# $HOME expands in a hyprlock path via hyprlang's env substitution; ~ does not.
+# A tilde here is the silent failure mode -- the background falls back to flat.
+if [[ -n "$hl_live" ]] && grep -q '^\s*path\s*=\s*~' "$hl_live" 2>/dev/null; then
+    no "hyprlock background path starts with ~ -- not expanded; use \$HOME"
+else
+    ok "hyprlock background path does not rely on ~ expansion"
+fi
+# swaylock and swayidle stay installed, unbound, as the fallback pair.
+for p in swaylock swayidle; do
+    rpm -q --quiet "$p" && ok "$p still installed (fallback)" || no "$p removed -- no way back if hyprlock breaks"
+done
+# Fedora's swayidle drop-in must be retired. The override is comment-only
+# rather than zero bytes, so test for the absence of DIRECTIVES, not of bytes.
+swayidle_override="${XDG_CONFIG_HOME:-$HOME/.config}/sway/config.d/90-swayidle.conf"
+if [[ -f "$swayidle_override" ]]; then
+    if grep -qvE '^[[:space:]]*(#|$)' "$swayidle_override"; then
+        no "90-swayidle.conf has live directives -- swayidle and hypridle will both run"
+    else
+        ok "Fedora's swayidle drop-in retired (override has no directives)"
+    fi
+else
+    no "no 90-swayidle.conf override -- Fedora's swayidle+swaylock drop-in is still active"
+fi
+pgrep -x swayidle >/dev/null \
+    && no "swayidle is RUNNING alongside hypridle -- two idle daemons, both will lock" \
+    || ok "swayidle correctly idle"
+
+head_ "Theming"
+fc-list -q 'Inter' && ok "Inter installed (GTK UI font)" || no "Inter MISSING -- GTK text falls back"
+test -d /usr/share/themes/adw-gtk3-dark \
+    && ok "adw-gtk3-dark present (GTK3 apps match the GTK4 ones)" || no "adw-gtk3-dark MISSING"
+test -d /usr/share/icons/Papirus-Dark && ok "Papirus-Dark present" || no "Papirus-Dark MISSING"
+# The black folders are symlinks baked in at build time, because
+# /usr/share/icons is read-only at runtime. Check a folder AND a user-* icon:
+# the latter only exists if the full variant set was linked, not just folder*.
+if readlink /usr/share/icons/Papirus/48x48/places/folder.svg 2>/dev/null | grep -q 'folder-black'; then
+    ok "Papirus folders are black"
+else
+    no "Papirus folders are NOT black -- papirus-folders did not run, or was reverted by an update"
+fi
+readlink /usr/share/icons/Papirus/48x48/places/user-home.svg 2>/dev/null | grep -q 'user-black' \
+    && ok "user-* icons recoloured too (Home, Desktop)" \
+    || meh "user-home.svg not recoloured -- only the folder* half was linked"
+
+head_ "New helpers"
+for b in swaync-client cliphist swappy wlogout nmcli gtkgreet; do
+    command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
+done
+grep -q 'combi-modes drun#run#window' /etc/sway/config \
+    && ok "rofi combi includes window mode" \
+    || no "rofi window mode lost -- \$mod+d will not list open windows"
+for f in swaync/style.css swaync/config.json wlogout/layout mako/config hypr/hypridle.conf; do
+    test -e "${XDG_CONFIG_HOME:-$HOME/.config}/$f" \
+        && ok "$f linked" || no "$f NOT linked -- run: just link-dotfiles"
+done
+
 head_ "Bazzite gaming stack intact"
 for b in steam gamescope mangohud; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
@@ -93,7 +304,10 @@ rpm -q --quiet xorg-x11-server-Xwayland && \
 uname -r | grep -q ogc && ok "Bazzite ogc kernel ($(uname -r))" || no "not on the ogc kernel: $(uname -r)"
 
 head_ "Qt keepers (should survive KDE removal)"
-for p in kf6-kwallet btrfs-assistant bazzite-updater breeze-icon-theme; do
+# breeze-icon-theme is deliberately NOT in this list any more: gtk-*/settings.ini
+# moved to Papirus-Dark and Adwaita cursors, so nothing depends on Plasma's
+# icon or cursor sets and 30-kde-remove.sh no longer asserts them.
+for p in kf6-kwallet btrfs-assistant bazzite-updater; do
     rpm -q --quiet "$p" && ok "$p installed" || no "$p removed"
 done
 

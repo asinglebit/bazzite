@@ -1,0 +1,334 @@
+{
+  "$schema": "/etc/xdg/swaync/configSchema.json",
+
+  "//": [
+    "SwayNotificationCenter. Replaces mako, which had no config anywhere on this",
+    "system and therefore ran at its compiled defaults: a #285577 blue box with a",
+    "#4C7899 border that never expired (default-timeout=0). That was the last",
+    "surface on this desktop still showing stock colours.",
+    "",
+    "It is here rather than a mako config for three reasons: the control centre",
+    "gives the volume slider, the media player and the quick toggles a real CSS",
+    "panel; it renders the `int:value` hint as a progress bar, which turns the",
+    "UNTOUCHED /usr/share/sway/config.d/60-bindings-{volume,brightness}.conf into",
+    "a proper OSD (those already send -h int:value:$VALUE; mako discarded it); and",
+    "it is themable from one stylesheet.",
+    "",
+    "IMPORTANT: unlike waybar/rofi/swaylock/mako, this file is NOT a wholesale",
+    "replacement of the shipped /etc/xdg/swaync/config.json. swaync resolves each",
+    "key against its own COMPILED-IN defaults -- swaync(5) documents a `default:`",
+    "per option -- so an omitted key falls back to the compiled value and NOT to",
+    "whatever the shipped sample says. That file is a sample, not a base layer.",
+    "Hence every key the theme depends on is restated here even where it matches;",
+    "cssPriority in particular has a compiled default of `application` while the",
+    "sample sets `user`.",
+    "",
+    "Started as a systemd user unit wanted by sway-session.target, so it owns",
+    "org.freedesktop.Notifications before anything can ask for it -- mako ships a",
+    "D-Bus activation entry claiming the same name, and which one wins is not",
+    "something to rely on. See build_files/10-sway-install.sh."
+  ],
+
+  "// theme": "Both required for the stylesheet to take effect. ignore-gtk-theme unsets GTK_THEME so adw-gtk3-dark does not fight the CSS; cssPriority=user loads it above ~/.config/gtk-4.0/gtk.css.",
+  "ignore-gtk-theme": true,
+  "cssPriority": "user",
+
+  "// placement": "Top right, under the 22px bar. layer=overlay so popups sit above fullscreen windows; control-center-layer=top so the panel does not.",
+  "positionX": "right",
+  "positionY": "top",
+  "layer": "overlay",
+  "control-center-layer": "top",
+  "layer-shell": true,
+  "control-center-margin-top": 4,
+  "control-center-margin-right": 4,
+  "control-center-margin-bottom": 4,
+  "control-center-margin-left": 0,
+
+  "// timeouts": "The fix for mako's never-expiring popup. Critical stays at 0 (sticky) on purpose -- that is the one class that should wait to be read.",
+  "timeout": 10,
+  "timeout-low": 5,
+  "timeout-critical": 0,
+
+  "// geometry": [
+    "Both monitors are 1920 logical wide -- the Dell is 3840 at scale 2 -- so one",
+    "set of numbers covers both.",
+    "",
+    "320 rather than swaync's default of 500: this panel holds a switch, a",
+    "slider, a media card and a row of four buttons, none of which needs the",
+    "width, and at 500 it read as a page rather than as a flyout. 320 is about",
+    "the floor -- four toggles across it are ~70px each, and the media card",
+    "still fits a file name and five transport buttons. The popup width follows",
+    "it down, 20px narrower again so a notification never looks wider than the",
+    "panel it will land in.",
+    "",
+    "The body-image box comes down with them: 180px of image in a 360px popup",
+    "left the text in a column too narrow to read.",
+    "",
+    "There is no panel height any more. `fit-to-screen: true` expands the",
+    "control centre to the full height of whatever monitor it opens on, which",
+    "is also why control-center-height is left at a value it never uses:",
+    "swaync(5) says it is ignored while fit-to-screen is true, and deriving the",
+    "height from the monitor beats naming a number that is wrong on the other",
+    "one. The sections sit at the top; the notification list is `vexpand` and",
+    "takes all the slack, and since the container is transparent that slack is",
+    "just desktop."
+  ],
+  "control-center-width": 320,
+  "control-center-height": 640,
+  "notification-window-width": 300,
+  "notification-body-image-height": 80,
+  "notification-body-image-width": 140,
+  "fit-to-screen": true,
+
+  "notification-grouping": true,
+  "relative-timestamps": true,
+  "hide-on-clear": true,
+  "hide-on-action": true,
+  "image-visibility": "when-available",
+  "transition-time": 200,
+  "// text-empty": "Empty, and that is deliberate now: the container is transparent, so a placeholder would be a label and a large icon floating on the bare desktop with nothing behind them. style.css hides the placeholder outright for the same reason.",
+  "text-empty": "",
+  "keyboard-shortcuts": true,
+  "script-fail-notify": true,
+
+  "// widgets": [
+    "Order is top to bottom in the panel. This is where the volume / media /",
+    "toggle UI actually comes from -- they are first-class widgets, not scripts.",
+    "  dnd          do-not-disturb switch",
+    "  volume       a real slider, plus per-device rows. swaync links libpulse",
+    "               directly, so this needs no helper.",
+    "  mpris        track name and transport. playerctl is already",
+    "               installed and the media keys are already bound by Fedora's",
+    "               60-bindings-media.conf; this is the missing surface.",
+    "  buttons-grid quick toggles, below.",
+    "  notifications the history list. vexpand so it takes the slack.",
+    "",
+    "NO HARDWARE GAUGES HERE, and not for want of trying. cpu/memory/",
+    "temperature came off waybar when the bar was reduced to glyphs, and this",
+    "panel is the obvious place for them, but swaync 0.12.6 cannot display a",
+    "live number:",
+    "",
+    "  `label` takes a static string from this file. There is no swaync-client",
+    "  verb that changes it at runtime, so the only way to refresh it would be",
+    "  to rewrite this file and reload the config -- and this file is a symlink",
+    "  into a git repo.",
+    "",
+    "  `slider` looks like the answer: cmd_getter is documented as running on",
+    "  every visibility change of the control centre, which is exactly the",
+    "  refresh a gauge needs. It does run -- proven with a getter that touched",
+    "  a file -- but 0.12.6 never applies the result to the scale. Three",
+    "  gauges fed `echo 25`, `printf 40` and `echo 100`, in ranges 0-100 and",
+    "  0-1, all sat pinned at the minimum. It is a read that goes nowhere.",
+    "",
+    "So the numbers went to the one surface on this desktop that can render",
+    "live text on demand: the tooltip of waybar's custom/hardware module, one",
+    "glyph in the bar's status pill, fed by waybar/stats.sh. If a later swaync",
+    "fixes the slider, three `slider#cpu`-style widgets pointed at",
+    "`sh -c '$HOME/.config/waybar/stats.sh cpu'` are all this needs -- the",
+    "script already prints exactly what a 0-100 slider wants."
+  ],
+  "// no title widget": [
+    "The header is gone. It was a card that spent its whole height saying",
+    "`Notifications` -- above a panel whose only contents are notifications --",
+    "and offering Clear All.",
+    "",
+    "Clearing did not go with it: middle-click the bell on the bar, which",
+    "waybar/config.jsonc binds to `swaync-client -C`. Individual notifications",
+    "keep their own close button either way."
+  ],
+  "widgets": [
+    "dnd",
+    "volume",
+    "mpris#chrome",
+    "mpris#firefox",
+    "mpris#haruna",
+    "mpris#mpv",
+    "mpris#spotify",
+    "mpris#other",
+    "buttons-grid",
+    "notifications"
+  ],
+
+  "widget-config": {
+    "dnd": {
+      "text": "Do not disturb"
+    },
+
+    "volume": {
+      "label": "󰕾",
+      "expand-button": "󰅀",
+      "collapse-button": "󰅃",
+      "show-per-app": true
+    },
+
+    "// mpris": [
+      "Transport and track name, and nothing else. `show-album-art: never` is",
+      "the whole of it -- accepted values are always | never | when-available.",
+      "",
+      "image-size and image-radius are gone with it: both only ever sized the",
+      "artwork, so with the artwork off they configure nothing.",
+      "",
+      "ONE SECTION PER ACTIVE PLAYER, STACKED. The three mpris#... widgets in",
+      "the list above are the same widget three times: swaync keys widget",
+      "config on ^<name>(#[a-zA-Z0-9_-]+)?$, so an instance is a real feature",
+      "rather than a trick, and three instances are three sections down the",
+      "panel instead of one.",
+      "",
+      "This is the only way to get players side by side vertically. A single",
+      "mpris widget puts them in a CAROUSEL -- one visible at a time, with",
+      "arrows and page dots -- and that is built into the widget, not styling:",
+      "nothing in CSS reflows an Adw carousel into a column.",
+      "",
+      "One instance per APP, narrowed with an inverted blacklist -- the",
+      "blacklist is a regex over the bus name, so `^(?!.*chromium).*$` on the",
+      "#chrome instance means everything EXCEPT Chrome. #other then takes what",
+      "is left by naming the apps the others claimed, so a player nobody",
+      "anticipated gets a section rather than vanishing.",
+      "",
+      "Per app, not per player, and that is the one case this cannot split: a",
+      "bus name is org.mpris.MediaPlayer2.<app>.instance<pid>, and the pid is",
+      "not knowable in advance, so two windows of the SAME app share their",
+      "section as a two-page carousel. Two different apps always get two",
+      "sections.",
+      "",
+      "The empty instances cost nothing on screen -- autohide, below, keeps",
+      "each one off the panel until its app is actually playing -- so the list",
+      "is written long deliberately. Adding an app is five lines here and one",
+      "entry in #other's blacklist.",
+      "",
+      "`autohide` is what makes ACTIVE the operative word. It hides a widget",
+      "when its player has no metadata, and with one player per widget that",
+      "finally means what it says: Chrome parks a session on the bus Stopped,",
+      "with no title and no url, for as long as the browser is open, and the",
+      "#browser section stays off the panel until a tab actually plays. The",
+      "same option did nothing when every player shared one widget -- one",
+      "player with metadata kept the whole thing visible -- which is why an",
+      "empty Chrome card used to sit beside the real one.",
+      "",
+      "playerctld is excluded everywhere, and by construction: it matches none",
+      "of the app patterns, so every inverted regex blacklists it, and #other",
+      "names it outright. It is a proxy that mirrors whichever player is",
+      "active, so a section for it would duplicate whichever section is already",
+      "showing. Nothing else points at it either: waybar held the desktop's",
+      "only playerctld consumer, and that mpris module is gone too now that",
+      "now-playing lives here.",
+      "",
+      "THERE IS NO SEEK BAR TO KEEP. This widget's layout is a GtkBuilder",
+      "template compiled into swaync, and it holds exactly: a background",
+      "picture, a 96px album-art image, a title label, a subtitle label, and",
+      "five flat buttons -- shuffle, previous, play/pause, next, repeat. No",
+      "progress scale, no position label. (The binary does carry a `can_seek`",
+      "query, but nothing in the template draws with it.) An older comment here",
+      "credited this widget with `scrub position`; it never had one."
+    ],
+    "mpris#chrome": {
+      "blacklist": ["^(?!.*(chromium|chrome)).*$"],
+      "autohide": true,
+      "show-album-art": "never",
+      "loop-carousel": false
+    },
+
+    "mpris#firefox": {
+      "blacklist": ["^(?!.*firefox).*$"],
+      "autohide": true,
+      "show-album-art": "never",
+      "loop-carousel": false
+    },
+
+    "mpris#haruna": {
+      "blacklist": ["^(?!.*haruna).*$"],
+      "autohide": true,
+      "show-album-art": "never",
+      "loop-carousel": false
+    },
+
+    "mpris#mpv": {
+      "blacklist": ["^(?!.*mpv).*$"],
+      "autohide": true,
+      "show-album-art": "never",
+      "loop-carousel": false
+    },
+
+    "mpris#spotify": {
+      "blacklist": ["^(?!.*spotify).*$"],
+      "autohide": true,
+      "show-album-art": "never",
+      "loop-carousel": false
+    },
+
+    "mpris#other": {
+      "blacklist": [
+        "playerctld",
+        "chromium", "chrome", "firefox", "haruna", "mpv", "spotify"
+      ],
+      "autohide": true,
+      "show-album-art": "never",
+      "loop-carousel": false
+    },
+
+    "buttons-grid": {
+      "//": [
+        "Toggles, not pickers. A `toggle` button needs BOTH command (the",
+        "action) and update-command, which prints true/false so the button",
+        "renders the system's real state rather than a remembered one -- open",
+        "the panel after changing wifi from the CLI and it should already agree.",
+        "",
+        "EVERY COMMAND HERE IS A CALL INTO swaync/toggle.sh, and that is a bug",
+        "fix rather than a refactor. These used to be inline one-liners, and",
+        "swaync does not run them through a shell: it expands the string itself",
+        "and spawns an argv, which tears apart anything containing a double",
+        "quote or a $(...). Opening the panel logged",
+        "",
+        "    -g: -c: line 1: unexpected EOF while looking for matching `''",
+        "",
+        "once for wifi and once for bluetooth, every time. Their update-commands",
+        "never ran, so both buttons showed the `active: false` default no matter",
+        "what the radios were doing -- while the idle toggle, whose one-liner",
+        "happened to contain neither a double quote nor a substitution, worked",
+        "and made the other two look like a styling problem.",
+        "",
+        "`sh -c '<script> <name> <verb>'` is the shape that survives: one level",
+        "of quoting, no substitution. toggle.sh carries the reasoning for each",
+        "of the three, and the reason the fourth is not a toggle.",
+        "",
+        "Glyphs are the literal Nerd Font characters, written the same way",
+        "waybar/config.jsonc writes its own -- and wifi/bluetooth are the very",
+        "same codepoints (U+F05A9, U+F00AF) so the panel and the bar cannot",
+        "drift apart. No padding: this is the *Mono* variant, which forces every",
+        "glyph to one cell, so the four buttons are already equal width. Do not",
+        "pad with U+3000 -- Hack Nerd Font Mono has no ideographic space and it",
+        "renders as a fallback box."
+      ],
+      "buttons-per-row": 4,
+      "actions": [
+        {
+          "label": "󰖩",
+          "type": "toggle",
+          "command": "sh -c '$HOME/.config/swaync/toggle.sh wifi set'",
+          "update-command": "sh -c '$HOME/.config/swaync/toggle.sh wifi state'"
+        },
+        {
+          "label": "󰂯",
+          "type": "toggle",
+          "command": "sh -c '$HOME/.config/swaync/toggle.sh bluetooth set'",
+          "update-command": "sh -c '$HOME/.config/swaync/toggle.sh bluetooth state'"
+        },
+        {
+          "label": "󰒲",
+          "type": "toggle",
+          "command": "sh -c '$HOME/.config/swaync/toggle.sh idle set'",
+          "update-command": "sh -c '$HOME/.config/swaync/toggle.sh idle state'"
+        },
+        {
+          "label": "󰐥",
+          "type": "simple",
+          "command": "wlogout --protocol layer-shell"
+        }
+      ]
+    },
+
+    "notifications": {
+      "vexpand": true
+    }
+  }
+}

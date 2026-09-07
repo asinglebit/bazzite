@@ -1,4 +1,4 @@
-# Bazzite + Sway — a Bazzite-derived bootc image running Sway instead of KDE Plasma.
+# Bazzite + SwayFX — a Bazzite-derived bootc image running SwayFX instead of KDE Plasma.
 #
 # Built on the ublue-os/image-template shape: the `ctx` scratch stage keeps the
 # build scripts out of the base layer's cache key, so editing build_files/ does
@@ -13,7 +13,7 @@ COPY cosign.pub    /cosign.pub
 
 FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable
 
-# 0 = install Sway alongside Plasma (boot 1, keeps a fallback session)
+# 0 = install SwayFX alongside Plasma (boot 1, keeps a fallback session)
 # 1 = also strip the Plasma session and KDE apps (boot 2)
 ARG REMOVE_KDE=0
 
@@ -34,5 +34,5 @@ RUN bootc container lint
 # org.opencontainers.image.source is what makes GHCR attach the package to the
 # repo and inherit its visibility settings; without it the package floats free.
 LABEL org.opencontainers.image.source="https://github.com/asinglebit/bazzite"
-LABEL org.opencontainers.image.description="Bazzite-derived bootc image running Sway instead of KDE Plasma"
+LABEL org.opencontainers.image.description="Bazzite-derived bootc image running SwayFX instead of KDE Plasma"
 LABEL org.opencontainers.image.title="bazzite-sway"

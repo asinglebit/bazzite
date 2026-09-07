@@ -9,6 +9,19 @@ export CTX
 # removed, so the image never contains a display-manager.service symlink
 # pointing at a package that is no longer installed.
 "${CTX}/build_files/10-sway-install.sh"
+
+# SwayFX has to land between the sway install and the display manager. It
+# installs its binary at /usr/bin/sway (it Provides: sway, Conflicts: sway), so
+# 20-display-manager.sh's `sway -C -c /etc/greetd/sway-greeter.conf` assertion
+# validates the greeter config with the binary that will actually run it, rather
+# than with the Fedora sway that is about to be replaced.
+"${CTX}/build_files/15-swayfx.sh"
+
+# The locker. After 15 because hyprlock and swayfx share the GLES2/EGL path that
+# 15 switches the image onto, and before 20 for no ordering reason beyond
+# keeping the numbering honest.
+"${CTX}/build_files/16-hyprlock.sh"
+
 "${CTX}/build_files/20-display-manager.sh"
 
 if [[ "${REMOVE_KDE:-0}" == "1" ]]; then

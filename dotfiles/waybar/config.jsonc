@@ -4,11 +4,41 @@
 // picks the first config it finds and does NOT merge, so this file has to be
 // complete rather than a set of overrides.
 //
-// Trimmed from the stock module list. Dropped as not applicable to a desktop
-// or as noise: battery, backlight, sway/language, sway/scratchpad,
-// power-profiles-daemon, idle_inhibitor. Add any of them back to
-// "modules-right" if you want them; their stock config blocks are in
-// /etc/xdg/waybar/config.jsonc.
+// Everything here is a module built into the installed waybar 0.15; nothing
+// below needs a package that is not already in the image. The stock config
+// blocks for anything removed are in /etc/xdg/waybar/config.jsonc.
+//
+// Still dropped as not applicable to a desktop: battery, backlight,
+// sway/language, power-profiles-daemon.
+//
+// --- HOW THE RIGHT-HAND SIDE IS MEANT TO WORK -------------------------------
+//
+// Hardware, sound, network, bluetooth and notifications sit together in
+// `group/status`, which style.css draws as one pill, and every one of them
+// opens the SAME surface on click: swaync's control centre. That panel holds
+// the controls -- volume slider and per-app volume, the wifi and bluetooth
+// radio toggles, do-not-disturb, the media player. The bar reports state; the
+// panel changes it. That division is what lets every module on this side be a
+// single glyph with no text next to it.
+//
+// The exception is the hardware glyph, whose numbers are in its tooltip rather
+// than in the panel, because swaync cannot render live text -- see the note in
+// waybar/stats.sh and the widget list in swaync/config.json for what was tried
+// and what it did.
+//
+// Right-click stays as the escape hatch to the one specialised tool the panel
+// cannot replace: pavucontrol for routing and profiles, rofi's SSID picker for
+// joining a network, blueman-manager for pairing.
+//
+// The clock is last, hard against the right edge, and it is the only text on
+// that side of the bar.
+//
+// The tray sits OUTSIDE the pill, to its left, because its contents are not
+// ours: they are whatever applications registered an icon, drawn in their own
+// artwork at their own colours. nm-applet used to put a second wifi icon there,
+// duplicating the module below in full colour and opening its own unthemed
+// menu; dotfiles/autostart/nm-applet.desktop now hides it the same way
+// blueman's applet is hidden.
 {
     "layer": "top",
     "position": "top",
@@ -20,9 +50,15 @@
     "height": 22,
     "spacing": 2,
 
-    "modules-left": ["sway/workspaces", "sway/mode"],
+    "modules-left": ["sway/workspaces", "sway/mode", "sway/scratchpad"],
     "modules-center": ["sway/window"],
-    "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "temperature", "clock", "tray"],
+    "modules-right": [
+        "privacy",
+        "systemd-failed-units",
+        "tray",
+        "group/status",
+        "clock"
+    ],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -33,6 +69,17 @@
         "format": "{}"
     },
 
+    // 20-appearance.conf sets `default_border none`, so a window sent to the
+    // scratchpad leaves NO trace on screen at all -- this count is the only
+    // feedback that $mod+Shift+minus did anything. Hidden when empty, so it
+    // costs nothing at rest.
+    "sway/scratchpad": {
+        "format": "󱂬 {count}",
+        "show-empty": false,
+        "tooltip": true,
+        "tooltip-format": "{app}: {title}"
+    },
+
     "sway/window": {
         "max-length": 90,
         "separate-outputs": true,
@@ -40,29 +87,172 @@
         "format": "{title}"
     },
 
-    "pulseaudio": {
-        "format": "{icon} {volume}%",
-        "format-muted": "muted",
-        "format-icons": { "headphone": "󰋋", "headset": "󰋎", "default": ["󰕿", "󰖀", "󰕾"] },
-        "on-click": "pavucontrol"
+    // Screen capture and microphone indicator.
+    //
+    // Not decoration: the README records that screen sharing through
+    // xdg-desktop-portal-wlr is whole-output only, with no window picker. When
+    // something is capturing, it is capturing everything, and this is the only
+    // thing on screen that says so.
+    "privacy": {
+        "icon-size": 12,
+        "icon-spacing": 6,
+        "transition-duration": 200,
+        "modules": [
+            { "type": "screenshare", "tooltip": true },
+            { "type": "audio-in",    "tooltip": true }
+        ]
     },
 
-    // The stock config prints the full {ipaddr}/{cidr} inline, which is most of
-    // the clutter on the right-hand side. Icon only; details in the tooltip.
+    // verify.sh has a "Failed units" section; this is that check, permanently,
+    // on the bar. hide-on-ok means it is invisible until something breaks --
+    // including hypridle, whose config cannot be validated at build time and
+    // whose failure is otherwise completely silent.
+    "systemd-failed-units": {
+        "format": "󰅚 {nr_failed}",
+        "format-ok": "",
+        "hide-on-ok": true,
+        "system": true,
+        "user": true
+    },
+
+    // NO mpris MODULE. Now-playing lives in the notification panel, which has
+    // a section per playing app (swaync/config.json), and a bar that also
+    // carried the title was saying the same thing twice -- at the cost of the
+    // one piece of variable-width text on the right-hand side, which nudged
+    // every glyph beside it whenever a track changed.
+    //
+    // What went with it: this module was the only thing on the desktop pointing
+    // at playerctld, the proxy that follows whichever player is active. Nothing
+    // starts it now, and nothing needs to -- the panel excludes it on purpose,
+    // because it duplicates whichever section is already showing. The media
+    // keys are unaffected: /usr/share/sway/config.d/60-bindings-media.conf
+    // drives them through the playerctl CLI, which finds a player on its own.
+
+    // NO idle_inhibitor MODULE. Idle management is one of the panel's quick
+    // toggles now -- the third button in swaync's buttons-grid, beside wifi and
+    // bluetooth -- and two controls for one concern on two different surfaces
+    // was one too many.
+    //
+    // They were not the same mechanism, which is worth knowing if the panel's
+    // version ever behaves differently from what this module did. This module
+    // held a Wayland idle-inhibit lock: per-session, dropped on logout, and
+    // dropped if waybar restarted. The panel's toggle stops the hypridle unit
+    // outright, so it survives both, and it survives the video player exiting
+    // as well. The blunter one is the one that stayed.
+
+    "tray": {
+        "icon-size": 16,
+        "spacing": 8
+    },
+
+    // The status pill.
+    //
+    // A `group` with no `drawer` block is not a drawer at all, just a box that
+    // waybar gives one CSS id -- which is the whole point here: style.css
+    // rounds #status and lifts it a shade off the bar, so four bare glyphs read
+    // as one control surface instead of four characters adrift in the blur.
+    // Hovering the pill lights all four at once, which is also the hint that
+    // they share a click target.
+    "group/status": {
+        "orientation": "horizontal",
+        "modules": ["custom/hardware", "pulseaudio", "network", "bluetooth", "custom/notification"]
+    },
+
+    // Hardware: cpu load, memory and package temperature, as one glyph with
+    // the figures in the tooltip.
+    //
+    // This replaces `group/hardware`, a drawer that revealed three text labels
+    // -- cpu/memory/temperature -- on hover. The labels are gone from the bar
+    // for good; what is kept from that block is the part that mattered, which
+    // is the alert. stats.sh emits a `class` of warning or critical from the
+    // same kind of thresholds `states` used to apply, so a machine in trouble
+    // brightens this glyph without anyone hovering anything. A reading you have
+    // to hover to see is not an alarm.
+    //
+    // interval 10 against the three modules' 5 each: one script every ten
+    // seconds is fewer wakeups than the bar spent on this before.
+    "custom/hardware": {
+        "format": "{}",
+        "return-type": "json",
+        "exec": "$HOME/.config/waybar/stats.sh json",
+        "interval": 10,
+        "on-click": "swaync-client -t -sw"
+    },
+
+    // Sound. Icon only.
+    //
+    // The percentage is gone: it was the only text in the cluster, and being
+    // text it changed width between one, two and three digits, which nudged
+    // every glyph to its left each time the volume moved. The number is one
+    // click away on the panel's slider, and on the tooltip without a click.
+    //
+    // Scroll still works -- the module's own default -- so the icon is a volume
+    // control without needing the panel at all. Middle-click mutes, through
+    // wpctl, because wireplumber is what this image runs.
+    "pulseaudio": {
+        "format": "{icon}",
+        "format-muted": "󰝟",
+        "format-icons": {
+            "headphone": "󰋋",
+            "headset": "󰋎",
+            "default": ["󰕿", "󰖀", "󰕾"]
+        },
+        "tooltip-format": "{desc}\n{volume}%",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "pavucontrol",
+        "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+    },
+
+    // Network. Icon only, and the icon IS the signal: format-icons is indexed
+    // by {signalStrength} on wifi, so the arc fills in as the link improves.
+    // Everything else is in the tooltip.
+    //
+    // `format-disabled` is the fix for the bug that made this module look
+    // broken. waybar-network(5): `rfkill` defaults to true, so `nmcli radio
+    // wifi off` -- exactly what the panel's wifi toggle runs -- puts this
+    // module in the `disabled` state, NOT `disconnected`. With no
+    // format-disabled set, waybar fell back to the module's default `format`
+    // of "{ifname}", which is empty once there is no usable interface, and an
+    // empty format hides a module outright. Turning wifi off therefore did not
+    // change this icon, it deleted it -- and every module to its left slid
+    // right to fill the hole, which is what made the bar look like it had
+    // stopped tracking anything at all.
+    //
+    // The bare `format` is now a real glyph for the same reason: it is the
+    // backstop for any state not named below, and it must never resolve to
+    // nothing.
     "network": {
-        "format-wifi": "󰖩",
+        "format": "󰌘",
+        "format-wifi": "{icon}",
+        "format-icons": ["󰤟", "󰤢", "󰤥", "󰤨"],
         "format-ethernet": "󰈀",
         "format-linked": "󰌙",
         "format-disconnected": "󰌘",
+        "format-disabled": "󰤮",
+        // Link state arrives over netlink the moment it changes; this interval
+        // only re-reads signal strength, which is the one value that drifts
+        // without an event.
+        "interval": 30,
         "tooltip-format": "{ifname}  {ipaddr}/{cidr}  via {gwaddr}",
-        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ifname}  {ipaddr}/{cidr}"
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ifname}  {ipaddr}/{cidr}",
+        "tooltip-format-disconnected": "No connection",
+        "tooltip-format-disabled": "Wi-Fi radio off",
+        "on-click": "swaync-client -t -sw",
+        // The SSID picker, through the already-themed rofi. Same script the
+        // $mod+Shift+w binding runs.
+        "on-click-right": "$HOME/.config/sway/rofi-wifi.sh"
     },
 
-    // Bluetooth. This replaces blueman-applet's tray icon, which is a
-    // full-colour PNG from hicolor and the one thing on the bar that could
-    // not be themed -- see the #tray note in style.css. waybar 0.15 talks to
-    // BlueZ over D-Bus itself, so this needs no helper script. The applet is
-    // suppressed by dotfiles/autostart/blueman.desktop (Hidden=true).
+    // Bluetooth. waybar 0.15 talks to BlueZ over D-Bus itself, so this needs no
+    // helper script and no applet -- blueman's tray icon is suppressed by
+    // dotfiles/autostart/blueman.desktop.
+    //
+    // The glyph was always right and never readable. Powering the controller
+    // off does swap 󰂯 for 󰂲, verified against the real bar, but the
+    // difference is a hairline slash across an already busy glyph at 11px, in
+    // the same grey, so the change was invisible in practice. style.css now
+    // carries the state in brightness as well: off drops to the dimmest grey
+    // on the bar, connected goes bright, plain-on sits between them.
     "bluetooth": {
         "format": "󰂯",
         "format-connected": "󰂱",
@@ -71,26 +261,66 @@
         "tooltip-format": "{controller_alias}\t{controller_address}",
         "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
         "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
-        "on-click": "blueman-manager"
+        "tooltip-format-disabled": "Bluetooth off",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "blueman-manager"
     },
 
-    "cpu":    { "format": "cpu {usage}%", "interval": 5, "tooltip": false },
-    "memory": { "format": "mem {percentage}%", "interval": 5 },
-
-    "temperature": {
-        "critical-threshold": 80,
-        "format": "{temperatureC}°",
-        "interval": 5
+    // Unread count, and the handle for the control centre. -swb is swaync's
+    // "subscribe, waybar format" mode: it streams JSON, which is why
+    // return-type is json and there is no interval.
+    "custom/notification": {
+        "tooltip": false,
+        "format": "{icon}",
+        "format-icons": {
+            "notification": "󰂚",
+            "none": "󰂜",
+            "dnd-notification": "󰂛",
+            "dnd-none": "󰂛",
+            "inhibited-notification": "󰂚",
+            "inhibited-none": "󰂜",
+            "dnd-inhibited-notification": "󰂛",
+            "dnd-inhibited-none": "󰂛"
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        // Clear all. This is where the panel's Clear All button went when the
+        // header widget came out of swaync/config.json -- a card whose whole
+        // height said "Notifications" above a panel of notifications. The
+        // per-notification close buttons are unaffected.
+        "on-click-middle": "swaync-client -C -sw",
+        "escape": true
     },
 
     "clock": {
         "format": "{:%H:%M}",
         "format-alt": "{:%a %Y-%m-%d  %H:%M}",
-        "tooltip-format": "<tt>{calendar}</tt>"
-    },
-
-    "tray": {
-        "icon-size": 16,
-        "spacing": 8
+        "tooltip-format": "<tt>{calendar}</tt>",
+        // A real calendar in the tooltip rather than a bare monospace dump:
+        // today is picked out in the bright grey, the rest of the days sit at
+        // base, and scrolling changes month.
+        //
+        // This is still a TOOLTIP, not a panel. A genuine CSS calendar widget
+        // would mean adopting ags, which is a whole widget framework and a
+        // separate decision.
+        "calendar": {
+            "mode": "month",
+            "mode-mon-col": 3,
+            "on-scroll": 1,
+            "format": {
+                "months":  "<span color='#d8d8d8'><b>{}</b></span>",
+                "weekdays":"<span color='#5a5a5a'>{}</span>",
+                "days":    "<span color='#9a9a9a'>{}</span>",
+                "today":   "<span color='#ffffff'><b><u>{}</u></b></span>"
+            }
+        },
+        "actions": {
+            "on-click-right": "mode",
+            "on-scroll-up": "shift_up",
+            "on-scroll-down": "shift_down"
+        }
     }
 }

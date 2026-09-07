@@ -72,13 +72,25 @@ fi
 # both sway-config-fedora and (until now) plasma-workspace.
 rpm -q xorg-x11-server-Xwayland
 rpm -q xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
-rpm -q sway sway-config-fedora sway-systemd greetd tuigreet
+# --whatprovides sway, not `rpm -q sway`: build_files/15-swayfx.sh swapped the
+# sway package out for swayfx, which Provides: sway = 1.11 and Conflicts: sway.
+# A literal `rpm -q sway` fails here and takes the whole :sway build with it.
+rpm -q --whatprovides sway
+rpm -q sway-config-fedora sway-systemd greetd tuigreet
+# The locker and its idle daemon, plus the swaylock/swayidle pair kept as the
+# fallback. Removing Plasma must not have reached any of them.
+rpm -q hyprlock hypridle swaylock swayidle
 # The only polkit agent this image can actually run: polkit-kde is a Plasma
 # component and lxqt-policykit is ABI-broken against Qt 6.11 on F44.
 rpm -q mate-polkit
 test -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
 rpm -q btrfs-assistant bazzite-updater
-rpm -q breeze-icon-theme breeze-cursor-theme
+# breeze-icon-theme / breeze-cursor-theme are deliberately NO LONGER asserted.
+# They were only kept alive because gtk-{3,4}.0/settings.ini named breeze-dark
+# and breeze_cursors -- a load-bearing dependency on Plasma's icon set, on a
+# machine whose entire point is that Plasma is gone. Those settings now name
+# Papirus-Dark and Adwaita (the latter already present as a GTK dependency), so
+# the packages are free to be orphaned like the rest of the Qt/KF6 stack.
 rpm -q steam
 
 # Plasma must be gone as a session.

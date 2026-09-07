@@ -15,7 +15,8 @@
  *
  * Palette, dark to light. Identical to dotfiles/waybar/style.css:
  *
- *   #1a1a1a  window background  -- the same surface as the bar (desktop #242424)
+ *   #1a1a1a  window background  -- the same surface as the bar, and like the
+ *            bar it is drawn at alpha so SwayFX can blur behind it
  *   #2e2e2e  hairline, and the selected row's fill
  *   #5a5a5a  dim    - placeholder, match counters, scrollbar handle
  *   #9a9a9a  base   - unselected entries
@@ -84,7 +85,15 @@
 }
 
 window {
-    background-color: #1a1a1a;
+    /* Alpha, so `layer_effects "rofi" blur enable` in
+     * sway/config.d/25-effects.conf has something to show through. Blur
+     * applies to what is BEHIND a surface, so an opaque background would have
+     * the compositor compute it and then hide it.
+     *
+     * 0xbb is a touch more opaque than the bar's 0.72: the launcher is a
+     * dense list of small text over whatever happens to be on the desktop,
+     * where the bar is a single row over mostly wallpaper. */
+    background-color: #1a1a1abb;
     border:           1px;
     border-color:     #2e2e2e;
 }

@@ -179,6 +179,89 @@ jobs:
           # and the pipefail above turns a successful match into exit 141.
           fc-list -q 'Hack Nerd Font Mono'
 
+          # The compositor. swayfx comes from a COPR whose RPM is a July 2025
+          # .fc43 build that nobody has rebuilt since, so this is the tripwire:
+          # it links libwlroots-0.19, which F44 still ships as a compat package.
+          # The day that is retired, or its soname bumped, the nightly has to
+          # fail HERE rather than ship an image whose desktop cannot start.
+          #
+          # `rpm -q --whatprovides sway`, never `rpm -q sway`: swayfx carries
+          # Provides: sway = 1.11 and Conflicts: sway, so there is no package by
+          # that name any more.
+          rpm -q swayfx
+          rpm -q --whatprovides sway >/dev/null
+          test -x /usr/bin/sway
+          # ldd once into a variable, then bash pattern matching -- `ldd | grep -q`
+          # would let grep exit early, SIGPIPE ldd, and pipefail would turn a
+          # passing assertion into exit 141.
+          sway_libs="$(ldd /usr/bin/sway)"
+          [[ "$sway_libs" == *libwlroots-0.19.so* ]]
+          [[ "$sway_libs" == *libscenefx* ]]
+          # sway-config-fedora must have survived Conflicts: sway -- it owns
+          # /etc/sway/config, start-sway and the session desktop entry.
+          rpm -q sway-config-fedora sway-systemd >/dev/null
+          # GLES2, not vulkan: SwayFX's fx_renderer has no Vulkan path, and at
+          # vulkan the compositor works but silently draws no effects.
+          grep -q '^WLR_RENDERER=gles2$' /etc/sway/environment
+          # And swayfx can still parse the config it inherited, after the
+          # rechunk. --unsupported-gpu because sway runs its NVIDIA guard before
+          # it validates; -C touches no device.
+          # No `sway -C` here: it cannot run in a container at all (file
+          # capability, then a libseat seat that does not exist), and a good
+          # config is indistinguishable from a broken one. See the note in
+          # build_files/15-swayfx.sh. verify.sh does this at runtime instead.
+
+          # The launcher gained window switching via a second sed in
+          # 10-sway-install.sh. Same failure mode as the $term one above: an
+          # upstream reformat makes it a silent no-op.
+          grep -q 'combi-modes drun#run#window' /etc/sway/config
+
+          # The locker, from the third-party COPR. swaylock and swayidle are
+          # asserted too because they are the documented way back if hyprlock
+          # breaks, and an autoremove would take them silently.
+          rpm -q hyprlock hypridle swaylock swayidle >/dev/null
+          hyprlock_libs="$(ldd /usr/bin/hyprlock)"
+          [[ "$hyprlock_libs" == *libEGL* || "$hyprlock_libs" == *libgbm* ]]
+          test -L /usr/lib/systemd/user/sway-session.target.wants/hypridle.service
+
+          # The notification daemon, and the symlink that makes it win the
+          # org.freedesktop.Notifications race against mako.
+          test -L /usr/lib/systemd/user/sway-session.target.wants/swaync.service
+          test -x /usr/bin/swaync
+
+          # The greeter. greetd now runs a Sway instance hosting gtkgreet, so
+          # /etc carries three more files the login screen cannot start without
+          # -- and this step runs after the rechunk precisely to prove /etc
+          # survived it. tuigreet is the retained fallback.
+          test -f /etc/greetd/sway-greeter.conf
+          test -s /etc/gtkgreet/style.css
+          test -s /etc/greetd/environments
+          grep -q '^start-sway$' /etc/greetd/environments
+          grep -q 'start-sway -c /etc/greetd/sway-greeter.conf' /etc/greetd/config.toml
+          command -v gtkgreet >/dev/null
+          command -v tuigreet >/dev/null
+
+          # Theming. papirus-folders is the SECOND artifact in this build
+          # fetched from a GitHub release rather than a signed repo, so it gets
+          # the same treatment as the Hack font: a 404 after an upstream retag,
+          # or an unapplied checksum bump, must fail CI. The user-* symlink is
+          # checked as well as folder*, because only the full variant set gives
+          # Home and Desktop black icons.
+          test -d /usr/share/themes/adw-gtk3-dark
+          test -d /usr/share/icons/Papirus-Dark
+          fc-list -q 'Inter'
+          [[ "$(readlink /usr/share/icons/Papirus/48x48/places/folder.svg)"    == *folder-black* ]]
+          [[ "$(readlink /usr/share/icons/Papirus/48x48/places/user-home.svg)" == *user-black*   ]]
+
+          # The COPRs must ship DISABLED, like terra.repo. An enabled
+          # third-party repo in the artifact would let a later transaction on a
+          # booted machine pull from it, and bootc would 3-way merge the file.
+          for f in /etc/yum.repos.d/_copr_swayfx-swayfx.repo \
+                   /etc/yum.repos.d/_copr_scottames-hypr.repo; do
+            test -f "$f"
+            grep -q '^enabled=0$' "$f"
+          done
+
           echo "image checks passed"
           EOF
 
