@@ -37,15 +37,15 @@ polkit_agent = true
 # monospace dump. 30-bar.toml overrides this again for the bar alone.
 font_family = "Noto Sans CJK SC"
 
-# The desktop has exactly one corner radius, 10px, which SwayFX applies to whole
+# The desktop has exactly one corner radius, 9px, which SwayFX applies to whole
 # surfaces from 25-effects.conf. This scales noctalia's radii for the elements
 # INSIDE a surface -- list rows, buttons, sliders -- which the compositor cannot
 # reach. Set by eye, not calculated.
 #
-# 0.7, and the two numbers moved in OPPOSITE directions when the desktop went
-# from 8px to 10px: the surface got rounder, the things inside it got tighter. At
-# 1.0 a list row curves like the panel holding it, which reads as a pill inside a
-# pill.
+# 0.7, which is deliberately TIGHTER than the surface around it rather than in
+# proportion to it. At 1.0 a list row curves like the panel holding it, which
+# reads as a pill inside a pill; under it, the row reads as a row and the panel
+# keeps the only curve that is doing any work.
 corner_radius_scale = 0.7
 
 # On -- and the reason this used to be off was simply wrong.
