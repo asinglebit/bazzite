@@ -130,19 +130,66 @@ sidebar             = "compact"
     [[control_center.shortcuts]]
     type = "notification"
 
+    # Two more, and they are the two toggles this repo argued itself out of
+    # having a switch for.
+    #
+    # `nightlight` is the answer to [nightlight] enabled = false above. That line
+    # says "off until asked for"; before this there was nothing to ask WITH short
+    # of editing the file, so wlsunset's successor was off permanently. Now the
+    # startup state is off and the button turns it on for an evening.
+    #
+    # `dark_mode` REPLACES the default's `power_profile`, and it comes with a
+    # caveat worth knowing before pressing it: palettes/bazzite-grey.json defines
+    # a `dark` block and no `light` one. 20-theme.toml pins mode and shell_mode to
+    # "dark" for exactly that reason, and greeter.toml hides the login screen's
+    # scheme selector on the same argument. This button reaches past all of it, so
+    # a desktop that suddenly goes pale is this control and not a bug -- press it
+    # again. A light bazzite-grey is what would make it safe, and there isn't one.
+    [[control_center.shortcuts]]
+    type = "nightlight"
+
+    [[control_center.shortcuts]]
+    type = "dark_mode"
+
 # --- Plugins ----------------------------------------------------------------
 #
 # The four things noctalia has no widget for: sway's binding-mode indicator, the
 # scratchpad count, failed systemd units, and hardware readings as one glyph with
-# an alert. All four are entries in one plugin under this directory.
+# an alert. All four are entries in one plugin under this directory, and that
+# plugin is the only one of the six below that SHIPS IN THE IMAGE.
 #
-# The two upstream git sources are DISABLED. This is an image: a shell that
-# fetches and updates code from GitHub in the background is a shell whose
-# contents are not what the commit says they are. auto_update is off for the
-# same reason.
+# THE TWO GIT SOURCES ARE NOW ENABLED, and the split that makes that survivable
+# is between fetching on request and fetching on a timer:
+#
+#   `enabled` on a source lets the shell resolve and install what the list below
+#   names, when asked. auto_update decides whether it goes back to GitHub on its
+#   own afterwards, and it is still "none".
+#
+# The original argument for turning both off was that an image whose shell
+# updates itself from GitHub in the background is an image whose contents are not
+# what the commit says they are. That argument is about auto_update, and it still
+# holds -- so the knob it was really about has not moved. What has changed is that
+# five community plugins are wanted, and a disabled source cannot install them.
+#
+# THE COST, stated plainly: only bazzite-sway is in this repo. The other five
+# resolve from github.com at first use and cache under
+# ~/.local/state/noctalia/plugin-cache, which is not tracked and not in the
+# image. A fresh install of this image has one plugin and no network dependency;
+# it grows the other five the first time it can reach GitHub. Pin them by
+# vendoring into dotfiles/noctalia/plugins and adding a path source, exactly as
+# bazzite-sway does, if that ever needs to stop being true.
 [plugins]
 auto_update = "none"
-enabled     = [ "asinglebit/bazzite-sway" ]
+enabled     = [
+    # In the image.
+    "asinglebit/bazzite-sway",
+    # Fetched. `noctalia msg plugins list` reports which of these resolved.
+    "yuuto/calculator",
+    "oldirtty/color_picker",
+    "ashur-d/nvim-projects",
+    "neyfua/obs-integration",
+    "davemhammer/obsidian",
+]
 
     [[plugins.source]]
     name     = "bazzite-sway"
@@ -154,10 +201,10 @@ enabled     = [ "asinglebit/bazzite-sway" ]
     name     = "official"
     kind     = "git"
     location = "https://github.com/noctalia-dev/official-plugins"
-    enabled  = false
+    enabled  = true
 
     [[plugins.source]]
     name     = "community"
     kind     = "git"
     location = "https://github.com/noctalia-dev/community-plugins"
-    enabled  = false
+    enabled  = true

@@ -66,11 +66,17 @@ theme_mode = "dark"
 # counting characters pointless anyway.
 font_family = "Inter"
 
-# Corner radius. The desktop has exactly one, 8px -- sway's `corner_radius 8`,
+# Corner radius. The desktop has exactly one, 10px -- sway's `corner_radius 10`,
 # applied to the shell's panels by namespace in
 # dotfiles/sway/config.d/25-effects.conf. This is a SCALE over Noctalia's own
 # radii rather than a pixel value, so it is set by eye in the nested preview
 # rather than calculated.
+#
+# It stays 1.0 while the shell's went to 0.7, and the two are not out of step.
+# The shell scaled its inner radii DOWN because SwayFX rounds the surface holding
+# them to 10px; nothing rounds this greeter's surfaces -- its compositor is
+# noctalia-greeter-compositor and there is no layer_effects for it -- so there is
+# no outer curve here for an inner one to fight with.
 corner_radius_scale = 1.0
 
 # The Noctalia brand mark, and the scheme picker. Both off.

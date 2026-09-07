@@ -1,5 +1,15 @@
 # The shell itself: what it owns, and the surfaces that are not the bar.
 
+# Global UI scale, over every surface noctalia draws.
+#
+# This is the knob 30-bar.toml points at rather than growing a
+# [bar.default.monitor.*] table: ONE number for both panels, not a constant per
+# connector. 0.9 because noctalia's own element sizing runs a shade large next to
+# the 24px strip this bar inherited from waybar -- and the bar takes a second
+# 0.75 of its own on top of it, so the two multiply.
+[accessibility]
+ui_scale = 0.9
+
 [shell]
 # THE MOST CONSEQUENTIAL LINE IN THIS DIRECTORY, and it is off by default.
 #
@@ -11,24 +21,48 @@
 # switch that avoids it.
 polkit_agent = true
 
-# Inter, as everywhere else in this desktop: the gschema override, the greeter,
-# and the GTK apps. Note this is NOT the bar's old font. waybar was set in Hack
-# Nerd Font Mono because its glyphs WERE Nerd Font glyphs; noctalia ships its own
-# icon font (noctalia-tabler.ttf), so the mono face is no longer load-bearing for
+# NOT Inter, and that makes the shell the one surface on this desktop that is
+# not -- the gschema override, the greeter and the GTK apps all still say Inter.
+# This is Noto Sans CJK SC, whose Latin is Source Han Sans: a wider, rounder face
+# than Inter at the same size, which is what carries a bar shrunk to 0.75.
+#
+# It has to be a family fontconfig actually resolves. `fc-match "Noto Sans CJK
+# SC"` must answer NotoSansCJK-Regular.ttc and not fall through to DejaVu -- a
+# miss is not an error, it is the whole shell quietly rendering in the fallback.
+#
+# What it is definitely NOT is the bar's old font. waybar was set in Hack Nerd
+# Font Mono because its glyphs WERE Nerd Font glyphs; noctalia ships its own icon
+# font (noctalia-tabler.ttf), so the mono face is no longer load-bearing for
 # anything but the terminal, and the bar can read as UI text rather than as a
-# monospace dump.
-font_family = "Inter"
+# monospace dump. 30-bar.toml overrides this again for the bar alone.
+font_family = "Noto Sans CJK SC"
 
-# The desktop has exactly one corner radius, 8px, which SwayFX applies to whole
+# The desktop has exactly one corner radius, 10px, which SwayFX applies to whole
 # surfaces from 25-effects.conf. This scales noctalia's radii for the elements
 # INSIDE a surface -- list rows, buttons, sliders -- which the compositor cannot
 # reach. Set by eye, not calculated.
-corner_radius_scale = 1.0
+#
+# 0.7, and the two numbers moved in OPPOSITE directions when the desktop went
+# from 8px to 10px: the surface got rounder, the things inside it got tighter. At
+# 1.0 a list row curves like the panel holding it, which reads as a pill inside a
+# pill.
+corner_radius_scale = 0.7
 
-# SwayFX draws shadows and rounding for every layer surface here, keyed on
-# namespace. Anything noctalia draws would sit inside that, as a second shadow
-# on an already-shadowed panel.
-popup_shadows = false
+# On -- and the reason this used to be off was simply wrong.
+#
+# The claim was that SwayFX already draws a shadow for these surfaces, so
+# noctalia's would be a second one on top. It does not. `shadows enable` in
+# 25-effects.conf applies to VIEWS; a layer surface gets only what its own
+# `layer_effects` line asks for, and not one of those lines asks for shadows.
+# Checked against the running compositor rather than reasoned about -- sway-ipc
+# reports the bar's surface as
+#
+#     {'blur': True, ..., 'shadows': False, 'corner_radius': 0}
+#
+# So this is the ONLY shadow the popups get, and now that the panels are frosted
+# rather than filled ([shell.panel] transparency_mode below) it is what separates
+# one from whatever it is floating over.
+popup_shadows = true
 
 # Hairlines, matching #2e2e2e's role in the palette.
 card_borders   = true
@@ -70,9 +104,16 @@ clipboard_keep_from_closed_apps = true
     # ATTACHED -- anchored under the bar widget that opens them, which is what
     # made the status pill one control surface. The launcher and the clipboard
     # are centred, as rofi was.
+    #
+    # control_center_position is pinned to "center" rather than left at "auto"
+    # because FOUR widgets open that one panel -- 30-bar.toml binds left-click on
+    # volume, network, bluetooth and notifications to it. "auto" anchors the panel
+    # under whichever glyph was clicked, so it walked along the bar depending on
+    # where in the pill you pressed. Pinned, it opens in the same place every
+    # time.
     [shell.panel]
     control_center_placement = "attached"
-    control_center_position  = "auto"
+    control_center_position  = "center"
     session_placement        = "attached"
     session_position         = "auto"
     launcher_placement       = "floating"
@@ -84,6 +125,31 @@ clipboard_keep_from_closed_apps = true
     floating_layer           = "overlay"
     borders                  = true
     shadow                   = false
+
+    # Frosted rather than filled, and this is the setting that makes the blur in
+    # 25-effects.conf visible at all. Same argument as the bar's
+    # background_opacity: at "solid" (the default) the compositor still runs a
+    # blur pass behind every panel and the panel paints straight over it.
+    transparency_mode        = "glass"
+
+    # ...and this is what "glass" costs. Over a translucent panel a bare list row
+    # loses its edges against whatever shows through; a background per row puts
+    # them back, so a list reads as rows rather than as text adrift on the
+    # desktop.
+    list_item_background     = true
+
+    # The rounded screen corners noctalia paints over the whole output.
+    #
+    # 16, down from the default 32. That default is sized for a floating bar with
+    # a margin around it; this bar spans the full width hard against the top edge,
+    # so a 32px curve bit into the BAR's corners rather than the screen's.
+    #
+    # noctalia's overlay, not the compositor's. Its namespace,
+    # noctalia-screen-corner, is one of the four 25-effects.conf deliberately
+    # leaves out of layer_effects -- that file explains why a full-output surface
+    # is the wrong place for a corner_radius.
+    [shell.screen_corners]
+    size = 16
 
     # The launcher rofi used to be. providers behind a prefix character: /calc,
     # /emoji, /windows, /session, /wallpaper. The window mode is what
