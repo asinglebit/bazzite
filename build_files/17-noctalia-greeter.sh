@@ -74,6 +74,25 @@ install -Dpm0755 "${CTX}/system_files/usr/libexec/noctalia-greeter-nvidia" \
 install -Dpm0644 "${CTX}/system_files/usr/share/factory/var/lib/noctalia-greeter/greeter.toml" \
                  /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
 
+# --- The user avatar -----------------------------------------------------------
+#
+# The greeter has NO avatar key in greeter.toml. It asks AccountsService for the
+# user's IconFile, and out of the box that resolves to $HOME/.face -- which
+# cannot work for a greeter: it runs as greetd, $HOME is 0700, so it cannot even
+# traverse the directory, let alone read the file. The visible symptom is the
+# stock line-art person placeholder, which is what this replaces.
+#
+# So the asset ships HERE, in /usr, world readable, at a path that has nothing to
+# do with any particular user's home. Binding it to an account is per-user state
+# and therefore cannot live in the image at all -- /var is not shipped -- so that
+# half is `just greeter-avatar`, and verify.sh reports whether it has been run.
+#
+# SVG, not PNG. The greeter links librsvg (checked below) and scales through
+# wp_fractional_scale_v1; a rasterised avatar would be the same fixed-bitmap
+# mistake this greeter exists to avoid, on two panels at 81 and 160 PPI.
+install -Dpm0644 "${CTX}/system_files/usr/share/bazzite-sway/greeter-avatar.svg" \
+                 /usr/share/bazzite-sway/greeter-avatar.svg
+
 # --- SELinux -----------------------------------------------------------------
 #
 # NOT OPTIONAL, and not something upstream has hit: greetd runs as xdm_t on an

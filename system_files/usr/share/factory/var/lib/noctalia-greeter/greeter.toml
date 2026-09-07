@@ -96,12 +96,28 @@ password_style = "random"
 #     made so from here. Proof the palette is applied at all: with `surface`
 #     set to #ff0000 the window renders #ca0b0b.
 #
-#  2. The text CARET is not ours. It draws in Noctalia's own accent (#cac37f,
-#     tone-mapped from their #fff59b) and does not follow any of the sixteen
-#     roles below -- with the palette set to red it stayed olive. There is no
-#     caret or accent key in the binary's string table, so it is hardcoded.
-#     Roughly 150 pixels of yellow on an otherwise grey screen; not fixable
-#     from configuration. Do not spend an evening on it twice.
+#  2. TWO THINGS ARE NOT GREY, and neither is reachable from here. Measured off
+#     rendered greeters (nested, `just greeter-preview`, so the hexes below are
+#     the un-tone-mapped ones the software renderer produces): of 675004 pixels
+#     in the greeter window, 1329 are non-neutral. 0.20%.
+#
+#     The text CARET, 16 px, is Noctalia's own accent -- #fff59b raw, #cac37f
+#     once the GLES2 path tone-maps it -- and follows none of the sixteen roles
+#     below. It was identical across a palette set to red, one with `primary`
+#     set to green, and one collapsed to mid grey. There is no caret or accent
+#     key in the binary's string table, so it is hardcoded.
+#
+#     The SUBMIT BUTTON, the arrow beside the password field, is 1173 px of that
+#     same accent BLENDED with `primary`. It does track `primary`: #d8d8d8 draws
+#     #f1ebb1, #00ff00 draws #a7f866, #2e2e2e draws #959063. But all three carry
+#     hue, because blending cannot remove what the accent contributes -- and
+#     every one of the sixteen roles here is already r=g=b, so there is no
+#     neutral input left to give it. The only lever is darkening `primary`,
+#     which moves the button's r/g/b span from 64 to 50 and spends the one
+#     filled bright block this palette deliberately creates. Not worth 14 units.
+#
+#     So: not fixable from configuration, either of them. Do not spend an
+#     evening on it twice.
 [appearance.palette]
 surface            = "#1a1a1a"
 on_surface         = "#d8d8d8"

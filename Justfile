@@ -250,6 +250,20 @@ link-dotfiles:
 #                         `user` / `password`; it also asks `7 + 2:` -- type `9`.
 #   WLR_BACKENDS=wayland  makes the bundled wlroots compositor open a window on
 #                         the current session instead of taking a DRM device.
+#   pixman + NO_EXPLICIT_SYNC  without BOTH of these this recipe does not paint
+#                         at all. The greeter's compositor is wlroots 0.20 and
+#                         its wayland backend wants explicit sync from its host;
+#                         SwayFX is 0.19 and does not offer the syncobj
+#                         protocol, so the nested backend spins on
+#                         "Signal timeline requires a wait timeline" (
+#                         backend/wayland/output.c:482) and never presents a
+#                         frame. Software rendering sidesteps the whole
+#                         dmabuf/timeline path. The cost is that the palette is
+#                         NOT tone-mapped the way the real GLES2 login screen
+#                         maps it, so colours sampled here read as their raw
+#                         seeds -- the accent shows as #fff59b rather than the
+#                         #cac37f the real screen draws. Judge layout and
+#                         relative contrast here; do not trust absolute hexes.
 #   STATE_DIR             a throwaway seeded from the image's own greeter.toml,
 #                         so this tests the SHIPPED config rather than whatever
 #                         is in /var. Verified to carry the palette: with
@@ -296,5 +310,79 @@ greeter-preview:
     NOCTALIA_GREETER_LOG=stderr \
     GREETER_BIN=/usr/bin/noctalia-greeter \
     WLR_BACKENDS=wayland \
+    WLR_RENDERER=pixman \
+    WLR_RENDER_NO_EXPLICIT_SYNC=1 \
     WLR_LOG="${WLR_LOG:-error}" \
         fakegreet 'dbus-run-session -- /usr/bin/noctalia-greeter-compositor'
+
+# Bind the image's avatar to the invoking user's account.
+#
+# WHY THIS IS A RECIPE AND NOT PART OF THE IMAGE. noctalia-greeter has no avatar
+# key in greeter.toml at all -- it asks AccountsService for the user's IconFile.
+# That is per-user state under /var/lib/AccountsService, and /var is not shipped
+# in a bootc image, so the image can only provide the FILE (17-noctalia-greeter.sh
+# installs it into /usr) and something outside the image has to attach it to an
+# account. Re-run this after a reinstall; verify.sh reports whether it has been.
+#
+# WHAT IT FIXES. Out of the box AccountsService reports IconFile=$HOME/.face,
+# which cannot work for this greeter under any circumstances: it runs as greetd,
+# $HOME is 0700, so it cannot even traverse the directory -- and on this machine
+# the file did not exist either way. The greeter falls back to its built-in
+# line-art person icon, which is the thing being replaced.
+#
+# NOT THE SetIconFile D-BUS CALL, which is the obvious API. accounts-daemon
+# carries /var/lib/AccountsService/icons as a baked-in path and copies the image
+# there under the bare username -- a filename with no extension. This greeter
+# picks its image decoder BY EXTENSION (`.svg` is special-cased in the binary),
+# so the copy would come back as an unrecognised raster file and the placeholder
+# would return. Writing Icon= keeps the /usr path and its extension, and
+# duplicates nothing.
+[doc('Bind the image avatar to this user, replacing the stock person icon.')]
+greeter-avatar:
+    #!/usr/bin/bash
+    set -euo pipefail
+    icon=/usr/share/bazzite-sway/greeter-avatar.svg
+    store="/var/lib/AccountsService/users/$USER"
+
+    [[ -r "$icon" ]] || {
+        echo "no $icon -- this deployment predates the avatar." >&2
+        echo "  just build && just switch && sudo systemctl reboot, then re-run this" >&2
+        exit 1
+    }
+
+    # Read-modify-write rather than truncate: this file also carries Language,
+    # XSession and SystemAccount for the account, and clobbering those is how a
+    # user stops being offered a session. Keys are case-sensitive, hence
+    # optionxform.
+    sudo python3 - "$store" "$icon" <<'AVATAR'
+    import configparser, os, sys
+    store, icon = sys.argv[1], sys.argv[2]
+    os.makedirs(os.path.dirname(store), mode=0o700, exist_ok=True)
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str
+    cp.read(store)
+    if not cp.has_section("User"):
+        cp.add_section("User")
+    cp.set("User", "Icon", icon)
+    with open(store, "w") as fh:
+        cp.write(fh, space_around_delimiters=False)
+    os.chmod(store, 0o600)
+    print(f"  wrote Icon={icon} to {store}")
+    AVATAR
+
+    # accounts-daemon caches the store, so make it re-read before asserting.
+    sudo systemctl try-restart accounts-daemon.service
+
+    obj="$(busctl --system call org.freedesktop.Accounts /org/freedesktop/Accounts \
+        org.freedesktop.Accounts FindUserByName s "$USER" --json=short | jq -r '.data[0]')"
+    got="$(busctl --system get-property org.freedesktop.Accounts "$obj" \
+        org.freedesktop.Accounts.User IconFile --json=short | jq -r '.data')"
+
+    if [[ "$got" == "$icon" ]]; then
+        echo "  AccountsService reports IconFile=$got"
+        echo
+        echo "Apply:  it is read at greeter start, so the next login screen has it."
+    else
+        echo "  AccountsService still reports IconFile=$got" >&2
+        exit 1
+    fi

@@ -148,6 +148,41 @@ if [[ -d "$state" ]]; then
     else
         meh "greeter.toml not checked -- $state is 0750 greetd:greetd; run 'sudo -v' first"
     fi
+
+    # The user avatar, in two halves, because the greeter has no avatar key in
+    # greeter.toml -- it asks AccountsService for IconFile. The image ships the
+    # file; `just greeter-avatar` binds it to the account. The second half is
+    # per-user state under /var, so it cannot be in the image, and its failure
+    # mode is silent: the greeter falls back to its built-in line-art person
+    # icon, which looks like a design choice rather than a missing step.
+    avatar=/usr/share/bazzite-sway/greeter-avatar.svg
+    if [[ -s "$avatar" ]]; then
+        ok "greeter avatar present in the image"
+        # Inverted, and nothing but. The source trace is a single black fill; a
+        # stray coloured one here would be the only non-neutral thing on the
+        # login screen that IS within our control.
+        avatar_fills="$(grep -oE 'fill="[^"]*"' "$avatar" | sort -u | tr '\n' ' ')"
+        [[ "$avatar_fills" == 'fill="#ffffff" ' ]] \
+            && ok "greeter avatar inverted to white, and greyscale throughout" \
+            || no "greeter avatar fills are [ ${avatar_fills}] -- expected only fill=\"#ffffff\""
+        python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' "$avatar" 2>/dev/null \
+            && ok "greeter avatar is well-formed XML" \
+            || no "greeter avatar is not well-formed XML -- librsvg will draw nothing"
+        # Bound to this account? Read it the way the greeter does, off the bus.
+        acct_obj="$(busctl --system call org.freedesktop.Accounts /org/freedesktop/Accounts \
+            org.freedesktop.Accounts FindUserByName s "$(id -un)" --json=short 2>/dev/null \
+            | jq -r '.data[0]' 2>/dev/null)"
+        icon_file="$(busctl --system get-property org.freedesktop.Accounts "${acct_obj:-/}" \
+            org.freedesktop.Accounts.User IconFile --json=short 2>/dev/null \
+            | jq -r '.data' 2>/dev/null)"
+        if [[ "$icon_file" == "$avatar" ]]; then
+            ok "AccountsService serves the image avatar to the greeter"
+        else
+            meh "AccountsService IconFile=${icon_file:-unset} -- login screen still shows the stock person icon; run 'just greeter-avatar'"
+        fi
+    else
+        no "no $avatar -- 17-noctalia-greeter.sh did not install the greeter avatar"
+    fi
 else
     no "no $state -- tmpfiles.d did not run; greeter has no config and no state"
 fi

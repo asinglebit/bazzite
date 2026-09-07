@@ -1,0 +1,52 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+ "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<!-- The greeter's user avatar: rattleworks' mark, inverted to white.
+
+     SOURCE. Traced with potrace; the original is a black silhouette on a
+     transparent ground, so "inverted" here is one attribute (fill #000000
+     becomes #ffffff) and nothing is rasterised. It stays SVG deliberately: the
+     greeter links librsvg and scales through wp_fractional_scale_v1, which is
+     the property this whole greeter was chosen for. A PNG would be the
+     console-cell mistake again, baked at one size.
+
+     WHITE, not #d8d8d8. Measured from a rendered greeter: the avatar draws at
+     the top of the login card with no frame around it, and that card is
+     `surface_variant` (#242424), not `surface`. It is a silhouette rather than
+     text, so it takes the brightest end of the greyscale ramp the way `error`
+     does. Every value here is r=g=b; there is no hue to drift.
+
+     HOW IT REACHES THE GREETER. noctalia-greeter has no avatar key in
+     greeter.toml: it asks AccountsService for the user's IconFile. Out of the
+     box that resolves to $HOME/.face, which cannot work here. The greeter runs
+     as greetd, $HOME is 0700, so it cannot even traverse it, and the file did
+     not exist anyway. That is why the stock person placeholder was showing.
+     `just greeter-avatar` points AccountsService at THIS path instead, which
+     is in /usr and world readable. -->
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
+ width="250.000000pt" height="250.000000pt" viewBox="0 0 250.000000 250.000000"
+ preserveAspectRatio="xMidYMid meet">
+<metadata>
+Created by potrace 1.16, written by Peter Selinger 2001-2019
+</metadata>
+<g transform="translate(0.000000,250.000000) scale(0.013158,-0.013158)"
+fill="#ffffff" stroke="none">
+<path d="M9295 17064 c-911 -31 -1725 -194 -2540 -509 -1220 -471 -2334 -1289
+-3160 -2320 -886 -1108 -1432 -2406 -1605 -3817 -67 -553 -67 -1242 0 -1809
+118 -993 433 -1955 926 -2821 1021 -1797 2739 -3108 4724 -3603 603 -151 1083
+-213 1715 -222 828 -12 1513 79 2276 302 733 215 1490 574 2114 1003 1089 749
+1947 1736 2520 2897 441 896 693 1828 760 2820 81 1179 -108 2349 -551 3413
+-319 764 -724 1420 -1278 2067 -129 150 -524 551 -671 681 -1200 1060 -2637
+1701 -4200 1873 -303 34 -770 54 -1030 45z m1362 -799 c1583 -133 3029 -802
+4146 -1919 805 -805 1387 -1792 1691 -2871 121 -427 188 -799 236 -1311 30
+-311 -71 -597 -283 -801 -163 -157 -347 -245 -575 -272 -46 -6 -87 -13 -92
+-16 -5 -3 -58 -10 -117 -15 -291 -23 -654 -140 -918 -295 -248 -145 -462 -328
+-641 -551 -40 -51 -77 -94 -82 -96 -5 -1 -27 -31 -50 -65 -250 -371 -659 -632
+-1111 -710 -147 -25 -413 -23 -563 5 -511 96 -937 406 -1181 862 -60 112 -97
+208 -142 366 -78 278 -99 344 -147 474 -384 1032 -1252 1838 -2311 2145 -310
+91 -534 123 -925 135 -176 5 -351 16 -415 25 -443 64 -834 261 -1152 580 -314
+313 -501 679 -577 1130 -28 169 -28 461 0 632 75 444 268 820 578 1129 62 61
+150 140 195 175 46 34 109 85 140 113 96 88 496 330 774 469 855 427 1749 656
+2735 701 148 7 612 -5 787 -19z"/>
+</g>
+</svg>
