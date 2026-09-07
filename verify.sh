@@ -386,6 +386,55 @@ fc-list -q 'Inter' && ok "Inter installed (GTK UI font)" || no "Inter MISSING --
 test -d /usr/share/themes/adw-gtk3-dark \
     && ok "adw-gtk3-dark present (GTK3 apps match the GTK4 ones)" || no "adw-gtk3-dark MISSING"
 test -d /usr/share/icons/Papirus-Dark && ok "Papirus-Dark present" || no "Papirus-Dark MISSING"
+
+# The greyscale palette. Two stylesheets, and they are the only thing that takes
+# Adwaita's blue accent and blue-tinted greys out of GTK.
+for f in gtk-3.0/gtk.css gtk-4.0/gtk.css; do
+    test -e "${XDG_CONFIG_HOME:-$HOME/.config}/$f" \
+        && ok "$f linked" \
+        || no "$f NOT linked -- GTK keeps Adwaita's blue accent (run: just link-dotfiles)"
+done
+
+# THE ONE THAT BITES SILENTLY. On Wayland GTK takes the theme, icon theme,
+# cursor theme and UI font from the XDG desktop portal, which answers them out
+# of org.gnome.desktop.interface in dconf -- and the portal WINS over
+# gtk-3.0/settings.ini for every key it serves. A stale dconf value therefore
+# overrides this repo with nothing logged anywhere.
+#
+# It matters most for gtk-theme. dotfiles/gtk-3.0/gtk.css redefines libadwaita's
+# colour names, and the GTK3 legacy names a widget actually asks for
+# (theme_bg_color and the rest) are aliases of those only inside adw-gtk3-dark.
+# Under stock Adwaita the stylesheet loads, parses clean, and half of it lands.
+#
+# The three non-default values here are Plasma-era leftovers from kde-gtk-config,
+# which wrote into dconf where 30-kde-remove.sh could not follow.
+while read -r key want; do
+    have=$(gsettings get org.gnome.desktop.interface "$key" 2>/dev/null | tr -d "'")
+    if [[ "$have" == "$want" ]]; then
+        ok "portal $key = $have"
+    else
+        no "portal $key = ${have:-unset}, settings.ini asks for '$want' and LOSES -- gsettings set org.gnome.desktop.interface $key '$want'"
+    fi
+done <<'KEYS'
+gtk-theme adw-gtk3-dark
+icon-theme Papirus-Dark
+cursor-theme Adwaita
+font-name Inter 10
+KEYS
+
+# The tripwire under dotfiles/gtk-4.0/gtk.css. libadwaita deprecated
+# @define-color in 1.6 for CSS custom properties, but through 1.9.3 the
+# properties are still SOURCED from the old names -- the library ships
+# `--window-bg-color: @window_bg_color` in its own stylesheet -- which is the
+# only reason one @define-color block themes GTK3, plain GTK4 and libadwaita
+# alike. If a release stops doing that, the GTK4 file silently themes nothing
+# and every colour there has to be restated as a :root variable.
+if gresource extract /usr/lib64/libadwaita-1.so.0 /org/gnome/Adwaita/styles/gtk.css 2>/dev/null \
+     | grep -q -- '--window-bg-color:[[:space:]]*@window_bg_color'; then
+    ok "libadwaita still sources its CSS variables from @define-color"
+else
+    no "libadwaita no longer sources --window-bg-color from @window_bg_color -- gtk-4.0/gtk.css needs a :root block for every colour"
+fi
 # The black folders are symlinks baked in at build time, because
 # /usr/share/icons is read-only at runtime. Check a folder AND a user-* icon:
 # the latter only exists if the full variant set was linked, not just folder*.

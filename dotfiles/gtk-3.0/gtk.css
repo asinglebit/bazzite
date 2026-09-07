@@ -1,0 +1,292 @@
+/*
+ * Greyscale adw-gtk3-dark -- the theme that draws Thunar, its context menus,
+ * and every other GTK3 window on this desktop.
+ *
+ * WHY A STYLESHEET AND NOT A THEME FORK. adw-gtk3-dark is libadwaita's
+ * stylesheet backported to GTK3 (settings.ini beside this file names it), so
+ * its dark palette is Adwaita's: a #222226 window, a #1d1d20 view, a #36363a
+ * popover, a #3584e4 accent. That accent is the only bright hue left anywhere
+ * on this desktop, and those greys are the only tinted ones -- waybar, rofi,
+ * swaync, wlogout, hyprlock and sway's own client.* rows are all neutral.
+ *
+ * An override reaches all of it because the theme is almost entirely
+ * indirected. Measured on the 303679 bytes of
+ * /usr/share/themes/adw-gtk3-dark/gtk-3.0/gtk.css:
+ *
+ *     1360  references to a named colour (@window_bg_color x243, @accent_bg_color x164)
+ *      130  literal hex tokens
+ *        0  literal instances of #222226, #1d1d20, #2e2e32, #36363a or #3584e4
+ *
+ * The palette is therefore reachable by name, and nothing has to be copied to
+ * reach it. GTK loads this file at GTK_STYLE_PROVIDER_PRIORITY_USER, above the
+ * theme's own level, so a redefinition here wins -- and an adw-gtk3-theme
+ * update cannot undo it, which a forked copy under ~/.themes would not
+ * survive.
+ *
+ * The theme's rules then do the work rather than this file. `menu, .menu,
+ * .context-menu` is a single declaration -- `background-color:
+ * @popover_bg_color` -- and every hover, active, disabled and entry state
+ * inside a menu is a mix() of that colour with @popover_fg_color. Two names
+ * repaint all of them.
+ *
+ * WHAT IT REACHES. GTK3, which on this desktop is Thunar and its menus,
+ * nm-applet's tray menu, blueman-manager, swappy and wlogout -- read out of
+ * `ldd` rather than assumed. pavucontrol is NOT in that list: it links
+ * libgtk-4.so.1 on F44. gtk-4.0/gtk.css carries the same palette for it and
+ * for swaync.
+ *
+ * WHAT THIS FILE DEPENDS ON -- AND IT IS NOT TRUE AS SHIPPED. Everything above
+ * holds only while adw-gtk3-dark is the ACTIVE GTK3 theme. The libadwaita
+ * names set below resolve whatever theme is loaded, but the GTK3 legacy names
+ * -- theme_bg_color, theme_base_color, theme_selected_bg_color and the rest,
+ * which are what a GTK3 widget actually asks for -- are aliases of them only
+ * INSIDE adw-gtk3-dark. Under stock Adwaita they are independent values, and
+ * half of this file stops landing.
+ *
+ * settings.ini beside this file asks for adw-gtk3-dark, and on Wayland that
+ * request loses. GTK takes the theme, icon theme, cursor theme and UI font from
+ * the XDG desktop portal, which answers them out of org.gnome.desktop.interface
+ * in dconf, and the portal WINS over settings.ini for every key it serves.
+ * Measured in a live session, Gtk.Settings against what settings.ini asks for:
+ *
+ *     gtk-theme-name          Adwaita          adw-gtk3-dark
+ *     gtk-icon-theme-name     breeze-dark      Papirus-Dark
+ *     gtk-cursor-theme-name   breeze_cursors   Adwaita
+ *     gtk-font-name           Noto Sans 10     Inter 10
+ *
+ * Only gtk-xft-dpi and gtk-application-prefer-dark-theme survive from that
+ * file, because the portal does not serve those two. The three Breeze and Noto
+ * values are Plasma-era leftovers that kde-gtk-config wrote into dconf and
+ * 30-kde-remove.sh could not reach, still winning on a machine whose whole
+ * point is that Plasma is gone -- the same leftovers settings.ini's own
+ * comments describe as retired.
+ *
+ * gtk-4.0/settings.ini already documents one key of this shape (color-scheme,
+ * "It lives in dconf, not in this repo"). These are the other four. verify.sh
+ * checks all of them under "Theming" and prints the gsettings line to fix each.
+ *
+ * NOT AN @import OF ONE SHARED FILE. GTK resolves a relative @import against
+ * the file it is reading, and ~/.config/gtk-3.0/gtk.css is a symlink into this
+ * repo -- so the import would resolve inside the repo and make the desktop
+ * depend on the repo being checked out at that path. Same trap
+ * rofi/config.rasi documents for @theme, and the same rule 20-appearance.conf
+ * states: the dotfiles repo is not a dependency of the desktop. The palette is
+ * restated in gtk-4.0/gtk.css instead, exactly as the two settings.ini files
+ * restate their shared keys.
+ *
+ * Palette, dark to light. Identical to waybar/style.css:
+ *   #1a1a1a  the darkest surface -- content views, and every floating panel
+ *   #242424  the desktop grey -- window bodies and their chrome
+ *   #2e2e2e  hairline, and the selection fill
+ *   #5a5a5a  dim    - disabled text
+ *   #9a9a9a  base   - secondary text, and "it worked"
+ *   #d8d8d8  bright - primary text, and the accent
+ *   #ffffff  alert  - errors and destructive actions
+ *
+ * THE MAPPING. Two substitutions applied throughout -- every `white` in adw's
+ * dark palette becomes #d8d8d8, and the blue accent becomes a grey -- over
+ * adw's own surface structure with the tint lifted out of it:
+ *
+ *                        adw-gtk3-dark   here
+ *     view               #1d1d20         #1a1a1a
+ *     window             #222226         #242424
+ *     headerbar/sidebar  #2e2e32         #242424
+ *     popover/dialog     #36363a         #1a1a1a
+ *     accent             #3584e4         #d8d8d8
+ *
+ * The first two are near-identity. Adw's dark greys are R=G with 3 to 6 more
+ * blue, so neutralising them lands within 6/255 of a value this desktop was
+ * already painting -- #1d1d20 -> #1a1a1a and #222226 -> #242424 change tone by
+ * at most 6 and 2 respectively. The other three are real decisions:
+ *
+ *   HEADERBAR AND SIDEBAR JOIN THE WINDOW at #242424 rather than standing a
+ *   tier above it. #242424 is what 20-appearance.conf paints sway's own
+ *   titlebars, so a Thunar toolbar and the tab title above it are one value
+ *   instead of two. It also means `headerbar_backdrop_color`, which adw
+ *   aliases to @window_bg_color, stops being a visible state -- which is the
+ *   rule 20-appearance.conf already follows, where focused and unfocused
+ *   titlebars are the same grey and only the text brightness differs. The
+ *   derived `theme_unfocused_fg_color` is mix(@window_fg_color,
+ *   @window_bg_color, 0.5) = #7e7e7e, which lands inside that file's
+ *   #6a6a6a - #8a8a8a band on its own.
+ *
+ *   POPOVERS AND DIALOGS GO DOWN TO #1a1a1a rather than up to a lighter tier.
+ *   A menu here is the same kind of object as a waybar tooltip and the rofi
+ *   window, and both of those are #1a1a1a with a 1px #2e2e2e border. That is
+ *   the doctrine swaync/style.css spells out for its cards: same tone as what
+ *   is behind them, separated by a hairline and a shadow rather than by
+ *   brightness. `borders` below is what makes it hold.
+ *
+ *   THE ACCENT IS #d8d8d8, which is swaync's `--bg-selected` and, inverted,
+ *   waybar's urgent pill (`background: #ffffff; color: #1a1a1a`). Greyscale
+ *   signals with brightness, so the accent has to be the bright end: a checked
+ *   checkbox is a light square with a dark tick, and a switch that is on has a
+ *   light track. A dim accent would reproduce exactly the problem
+ *   25-effects.conf describes of the radio glyphs -- a state change that looks
+ *   like nothing happened.
+ *
+ * WHAT IS DELIBERATELY NOT SET HERE:
+ *
+ *   The GTK3 legacy names. `theme_bg_color`, `theme_base_color`,
+ *   `theme_fg_color`, `theme_text_color`, `theme_selected_bg_color`,
+ *   `content_view_bg` and the six `theme_unfocused_*` are all defined by the
+ *   theme as aliases of the libadwaita names below -- `@define-color
+ *   theme_bg_color @window_bg_color` and so on -- and GTK resolves a named
+ *   colour at compute time against the highest-priority definition. They
+ *   follow this file without being listed in it.
+ *
+ *   The five *_shade_color values and scrollbar_outline_color. They are
+ *   near-black scrims -- rgba(0, 0, 6, 0.25) through rgba(0, 0, 12, 0.95) --
+ *   whose 6/255 of blue is not visible at those alphas, and adw's 0.36 is
+ *   already the 0x60 this desktop uses for `shadow_color` in 25-effects.conf
+ *   and `--notification-shadow` in swaync/style.css. Nothing to gain.
+ *
+ *   `blue_1` through `dark_5`. Those are adw's fixed reference palette, not
+ *   role colours: an app that asks for @blue_3 by name is asking for blue, and
+ *   nothing on this desktop does. @accent_bg_color was the only role that
+ *   pointed into it, and it is redefined below.
+ */
+
+/* --- Surfaces --------------------------------------------------------------
+ *
+ * Four roles, two values. See THE MAPPING above for why the chrome joins the
+ * window and the popovers join the view.
+ */
+@define-color view_bg_color      #1a1a1a;
+@define-color window_bg_color    #242424;
+@define-color headerbar_bg_color #242424;
+@define-color sidebar_bg_color   #242424;
+@define-color popover_bg_color   #1a1a1a;
+@define-color dialog_bg_color    #1a1a1a;
+
+/* The card is swaync's section card, at the same value: `--section-bg:
+ * #1a1a1a`, opaque, separated by its hairline and its shadow. Adw's default is
+ * rgba(255, 255, 255, 0.08), a translucent white lift over whatever is under
+ * it, which is the "separate by brightness" it is being replaced with. */
+@define-color card_bg_color      #1a1a1a;
+
+/* Backdrop, i.e. the window that does not have focus. Set flat rather than
+ * left to adw's #28282c so it agrees with the headerbar rule above: focus is
+ * carried by text brightness, not by a change of surface. */
+@define-color sidebar_backdrop_color   #242424;
+@define-color headerbar_backdrop_color #242424;
+
+/* --- Text ------------------------------------------------------------------
+ *
+ * Every one of these is `white` in adw's dark palette. #d8d8d8 is the bright
+ * end of this desktop's ramp, which is what waybar, rofi and swaync use for
+ * primary text -- pure white is reserved for alerts, below.
+ */
+@define-color window_fg_color        #d8d8d8;
+@define-color view_fg_color          #d8d8d8;
+@define-color headerbar_fg_color     #d8d8d8;
+@define-color sidebar_fg_color       #d8d8d8;
+@define-color popover_fg_color       #d8d8d8;
+@define-color dialog_fg_color        #d8d8d8;
+@define-color card_fg_color          #d8d8d8;
+@define-color headerbar_border_color #d8d8d8;
+
+/* Disabled. Adw derives this as alpha(@window_fg_color, 0.5), which over
+ * #242424 computes #7e7e7e -- brighter than the #5a5a5a swaync gives
+ * `--text-color-disabled` and waybar gives an off state. Stated explicitly so
+ * the two agree. */
+@define-color insensitive_fg_color #5a5a5a;
+
+/* --- Accent ----------------------------------------------------------------
+ *
+ * #d8d8d8 on #1a1a1a: bright fill, dark glyph. This is what paints a checked
+ * checkbox, a switch that is on, a progress bar, a focus ring and a
+ * suggested-action button.
+ *
+ * `accent_color` is the standalone variant -- the accent as text or an icon on
+ * a flat background, for links and for a selected label. Adw derives it as
+ * mix(@accent_bg_color, white, 0.4), which from #d8d8d8 would compute #e8e8e8
+ * and put a value above #d8d8d8 but below #ffffff into a ramp that has no such
+ * step. Held at #d8d8d8.
+ */
+@define-color accent_bg_color #d8d8d8;
+@define-color accent_fg_color #1a1a1a;
+@define-color accent_color    #d8d8d8;
+
+/* --- Semantics -------------------------------------------------------------
+ *
+ * Greyscale has no red and no green, so these are waybar's brightness ladder
+ * instead, as documented in the States block of waybar/style.css:
+ *
+ *   #9a9a9a  base   - success. It worked; that is not news.
+ *   #d8d8d8  bright - warning. Notable.
+ *   #ffffff  alert  - error and destructive. A fault, or a thing that cannot
+ *                     be undone -- which is exactly how wlogout/style.css
+ *                     marks Shut down and Reboot.
+ *
+ * The cost is real and worth naming: a failed copy in Thunar loses its red
+ * outright, and an error dialog is distinguished from a warning by one step of
+ * brightness. To put hue back for these four roles alone, set the six *_color
+ * values here to adw's own @red_3 / @yellow_5 / @green_4; nothing else in this
+ * file depends on them.
+ */
+@define-color success_bg_color     #9a9a9a;
+@define-color success_fg_color     #1a1a1a;
+@define-color success_color        #9a9a9a;
+@define-color warning_bg_color     #d8d8d8;
+@define-color warning_fg_color     #1a1a1a;
+@define-color warning_color        #d8d8d8;
+@define-color error_bg_color       #ffffff;
+@define-color error_fg_color       #1a1a1a;
+@define-color error_color          #ffffff;
+@define-color destructive_bg_color #ffffff;
+@define-color destructive_fg_color #1a1a1a;
+@define-color destructive_color    #ffffff;
+
+/* --- Borders ---------------------------------------------------------------
+ *
+ * The hairline, and it is load-bearing rather than decoration -- it is what
+ * separates a menu from the view behind it now that both are #1a1a1a. Same
+ * argument, and the same value, as `--noti-border-color` in swaync/style.css
+ * and the `border: 1px #2e2e2e` on waybar's tooltip and rofi's window.
+ *
+ * Explicit rather than derived. Adw computes it as
+ * mix(currentColor, @window_bg_color, 0.85), which from #d8d8d8 over #242424
+ * gives #3f3f3f -- a value the ramp does not contain, and brighter than the
+ * hairline every other surface on this desktop draws. #2e2e2e is one step up
+ * from both #1a1a1a and #242424, so the one value is visible against every
+ * surface set above.
+ */
+@define-color borders           #2e2e2e;
+@define-color unfocused_borders #2e2e2e;
+
+/* --- Selection in the treeview family --------------------------------------
+ *
+ * The one place the named colours are not enough, and the reason is an
+ * inconsistency inside adw-gtk3 itself rather than anything about this
+ * palette. It draws the two kinds of list differently:
+ *
+ *   row:selected                   alpha(currentColor, 0.1)   -> #2d2d2d
+ *   treeview.view:selected         alpha(@accent_bg_color, 0.25) -> #4a4a4a
+ *   iconview:selected              alpha(@accent_bg_color, 0.25) -> #4a4a4a
+ *   flowbox flowboxchild:selected  alpha(@accent_bg_color, 0.25) -> #4a4a4a
+ *
+ * (computed over the #1a1a1a view set above, with the #d8d8d8 accent.)
+ *
+ * A GtkListBox row therefore lands on #2d2d2d unaided -- one value off the
+ * #2e2e2e that rofi's selected row and waybar's workspace hover already use,
+ * and indistinguishable from it. The treeview family lands 29 steps brighter,
+ * because 0.25 of a bright accent is a much bigger lift than 0.25 of a blue
+ * one was. In Thunar that is the difference between the Places sidebar and the
+ * file list beside it: two selections in one window, two tones.
+ *
+ * So this pins the treeview family to what the list family computes. The text
+ * colour is deliberately not touched -- adw leaves a selected row at
+ * @view_fg_color, which is the #d8d8d8 rofi puts on its selected row.
+ *
+ * Written at the theme's own selector depth so it matches without !important.
+ * If a future adw-gtk3 renames these, the failure is graceful and visible:
+ * selection returns to the derived #4a4a4a, a neutral grey one step outside
+ * the ramp, rather than to blue.
+ */
+treeview.view:selected,
+treeview.view:selected:focus,
+iconview:selected,
+flowbox flowboxchild:selected {
+    background-color: #2e2e2e;
+}

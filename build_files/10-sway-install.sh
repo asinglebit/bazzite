@@ -132,8 +132,11 @@ fc-list -q 'Hack Nerd Font Mono'
 # almost right.
 #
 # adw-gtk3 is structural rather than cosmetic here. swaync is GTK4 +
-# libadwaita; wlogout, swappy, Thunar, pavucontrol and blueman-manager are all
-# GTK3. Without it the new UI is split across two GTK eras.
+# libadwaita; wlogout, swappy, Thunar, nm-applet and blueman-manager are all
+# GTK3. Without it the new UI is split across two GTK eras. (pavucontrol was in
+# that GTK3 list until F44 rebuilt it against GTK4 -- it is themed through
+# adw-gtk3-dark's gtk-4.0/ directory now, so the package still earns its place
+# here either way.)
 test -d /usr/share/themes/adw-gtk3-dark
 test -d /usr/share/icons/Papirus-Dark
 fc-list -q 'Inter'
