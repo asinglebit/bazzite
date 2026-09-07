@@ -1,0 +1,230 @@
+# The bar.
+#
+# This is a port of dotfiles/waybar/config.jsonc, and the layout argument it
+# carried is worth restating because it decides everything below: the bar
+# REPORTS state and the control centre CHANGES it. That division is what lets
+# every widget on the right be a single glyph with no text beside it, and it is
+# why nearly all of them share one left-click target.
+#
+# What is genuinely new: the OSD. Volume, mic, brightness, DND and night light
+# now draw a transient indicator instead of a notification with an int:value
+# hint, which is what /usr/share/sway/config.d/60-bindings-volume.conf used to
+# do through swaync. See 10-shell.toml.
+
+[bar]
+order = [ "default" ]
+
+    [bar.default]
+    position = "top"
+    layer    = "top"
+
+    # Full width, hard against the top edge, square. noctalia's defaults are a
+    # floating pill (radius 12, margin_ends 100); this desktop's bar has always
+    # spanned the screen, and dotfiles/sway/config.d/25-effects.conf gives its
+    # namespace `corner_radius 0` for the same reason.
+    radius               = 0
+    radius_top_left      = 0
+    radius_top_right     = 0
+    radius_bottom_left   = 0
+    radius_bottom_right  = 0
+    margin_edge          = 0
+    margin_ends          = 0
+    margin_opposite_edge = 0
+    concave_edge_corners = false
+    reserve_space        = true
+
+    # 30 -> 24 -> 22 was waybar's progression, and the binding floor there was
+    # the 16px tray icon rather than the text. noctalia draws capsules rather
+    # than bare glyphs, so it does not have the same floor -- this is the first
+    # number to check by eye, and the only reason it is not 22.
+    thickness      = 24
+    padding        = 8
+    widget_spacing = 4
+    font_scale     = 0.95
+    font_weight    = 500
+
+    # The alpha is not decoration. SwayFX blurs whatever is BEHIND a translucent
+    # surface, so an opaque bar does not disable the blur -- it hides it, and the
+    # compositor still pays for it. waybar drew at rgba(26,26,26,0.72) for this
+    # reason; the value carries over unchanged.
+    background_opacity = 0.72
+
+    # SwayFX draws the shadow and the rounding for every layer surface this
+    # desktop has, keyed on namespace in 25-effects.conf. Anything noctalia
+    # draws here would be a second shadow inside the first.
+    shadow          = false
+    contact_shadow  = false
+    border          = "outline"
+    border_width    = 0.0
+    hover_highlight = true
+
+    # NO [bar.default.monitor.*] TABLE, DELIBERATELY.
+    #
+    # noctalia keys per-monitor overrides by CONNECTOR name. This desktop matches
+    # outputs by EDID identifier (10-outputs.conf) precisely because connectors
+    # move -- the Dell is HDMI-A-2 "today". Per-connector constants here would be
+    # the same class of mistake greeter.toml refuses at its own [output] block,
+    # with the console-cell measurement as the argument.
+    #
+    # Left alone, one bar spawns per output and takes its scale from sway's
+    # `output ... scale 2` through wp_fractional_scale_v1. If the bar is wrong,
+    # it will be wrong on BOTH monitors, and the fix is `scale` here or
+    # ui_scale in 10-shell.toml -- one number, not a table of connectors.
+    scale = 1.0
+
+    start  = [ "workspaces", "swaymode", "scratchpad" ]
+    center = [ "active_window" ]
+    end    = [
+        "privacy",
+        "failedunits",
+        "tray",
+        "hardware",
+        "output_volume",
+        "network",
+        "bluetooth",
+        "notifications",
+        "clock",
+    ]
+
+    # The status pill.
+    #
+    # waybar/style.css drew this by hand: a `group/status` box given one CSS id,
+    # rounded, lifted a shade off the bar so five bare glyphs read as one control
+    # surface rather than five characters adrift in the blur. noctalia has the
+    # concept, so the CSS is gone and the intent is a list.
+    capsule_group     = [ "hardware", "output_volume", "network", "bluetooth", "notifications" ]
+    capsule           = true
+    capsule_fill      = "surface_variant"
+    capsule_opacity   = 0.35
+    capsule_padding   = 6.0
+    capsule_radius    = 9.0
+    capsule_thickness = 0.76
+
+# --- Widgets -----------------------------------------------------------------
+#
+# A widget's NAME is its id and is what the bar lists; `type` is what it is. So
+# two sysmon widgets can differ, and a name can be reused across bars.
+#
+# Gestures live in [widget.<name>.actions] and there are nine of them, against
+# waybar's five. NOTE THE DEFAULT: every widget starts with
+# middle = "settings-open-widget", so a middle-click opens a settings page
+# unless it is bound to something or to "none". Every widget below says which.
+
+[widget.workspaces]
+type                = "workspaces"
+focused_output_only = false
+
+    [widget.workspaces.actions]
+    middle = "none"
+
+[widget.active_window]
+type       = "active_window"
+max_length = 260.0
+min_length = 0.0
+
+    [widget.active_window.actions]
+    middle = "none"
+
+# Screen capture and microphone indicator.
+#
+# Not decoration: screen sharing through xdg-desktop-portal-wlr is whole-output
+# only, with no window picker. When something is capturing, it is capturing
+# everything, and this is the only thing on screen that says so.
+[widget.privacy]
+type = "privacy"
+
+    [widget.privacy.actions]
+    middle = "none"
+
+# The tray sits OUTSIDE the pill, to its left, because its contents are not
+# ours: they are whatever applications registered an icon, drawn in their own
+# artwork at their own colours.
+[widget.tray]
+type = "tray"
+
+# Hardware: cpu, memory and package temperature as ONE glyph, with the figures
+# in the tooltip and the alert in the glyph's colour. A Luau entry rather than
+# three `sysmon` widgets, because the three text labels came off this bar
+# deliberately and are not coming back -- what mattered was the alert, not the
+# reading. The thresholds it colours against are in 50-services.toml under
+# [system.monitor], so the control centre and this widget agree.
+# Sway's binding-mode indicator and the scratchpad count. Neither has a
+# built-in equivalent -- noctalia's keyboard_layout widget is a different thing,
+# and nothing counts the scratchpad -- so both are entries in the plugin. Both
+# hide themselves when they have nothing to say.
+[widget.swaymode]
+type = "asinglebit/bazzite-sway:swaymode"
+
+    [widget.swaymode.actions]
+    middle = "none"
+
+[widget.scratchpad]
+type = "asinglebit/bazzite-sway:scratchpad"
+
+    [widget.scratchpad.actions]
+    middle = "none"
+
+# Invisible until a unit fails. The one failure it cannot report is
+# noctalia.service, because then there is no bar -- that is verify.sh's job.
+[widget.failedunits]
+type = "asinglebit/bazzite-sway:failedunits"
+
+    [widget.failedunits.actions]
+    middle = "none"
+
+[widget.hardware]
+type = "asinglebit/bazzite-sway:hardware"
+
+    [widget.hardware.actions]
+    left   = "panel-toggle control-center"
+    middle = "none"
+
+[widget.output_volume]
+type   = "volume"
+device = "output"
+
+    # Scroll still works -- the widget's own default -- so the glyph is a volume
+    # control without the panel at all. Right-click keeps the one escape hatch
+    # the panel cannot replace: pavucontrol, for routing and profiles.
+    [widget.output_volume.actions]
+    left   = "panel-toggle control-center"
+    right  = "run pavucontrol"
+    middle = "volume-mute"
+
+[widget.network]
+type = "network"
+
+    [widget.network.actions]
+    left   = "panel-toggle control-center"
+    middle = "none"
+
+[widget.bluetooth]
+type = "bluetooth"
+
+    # blueman-manager stays as the deep pairing dialogue. Routine pairing is
+    # noctalia's now -- it is an org.bluez.Agent1, which is what nm-applet's and
+    # blueman's applets were kept around for.
+    [widget.bluetooth.actions]
+    left   = "panel-toggle control-center"
+    right  = "run blueman-manager"
+    middle = "none"
+
+[widget.notifications]
+type = "notifications"
+
+    [widget.notifications.actions]
+    left   = "panel-toggle control-center"
+    right  = "notification-dnd-toggle"
+    middle = "notification-clear-active"
+
+# The clock is last, hard against the right edge, and the only text on that side
+# of the bar. A real calendar lives one click away in the control centre now,
+# which is what waybar/config.jsonc's Pango-markup <tt>{calendar}</tt> tooltip
+# was standing in for.
+[widget.clock]
+type   = "clock"
+format = "{:%H:%M}"
+
+    [widget.clock.actions]
+    left   = "panel-toggle control-center"
+    middle = "none"

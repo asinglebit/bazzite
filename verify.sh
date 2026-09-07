@@ -57,7 +57,8 @@ fi
 # sway conflates config WARNINGS with errors: an overwritten binding, or an
 # i3-only directive such as client.background, raises the same "There are errors
 # in your config file" swaynag bar that a syntax error does. Nothing else in
-# this desktop spawns swaynag -- $mod+Shift+e is wlogout now -- so a running one
+# this desktop spawns swaynag -- $mod+Shift+e is the shell's session panel now --
+# so a running one
 # means the config raised something. `bindsym --no-warn` is how a deliberate
 # override says it meant it.
 pgrep -x swaynag >/dev/null \
@@ -229,67 +230,113 @@ vulkaninfo --summary 2>/dev/null | grep -q 'NVIDIA' && ok "Vulkan sees the NVIDI
 pgrep -x Xwayland >/dev/null && ok "Xwayland running" || meh "Xwayland not running (no X11 client started yet)"
 
 head_ "Desktop services"
-pgrep -f polkit-mate-authentication-agent >/dev/null && ok "polkit agent running" \
+# THE AGENT CHECK IS NOW A PROCESS CHECK, and that is a real loss of precision
+# worth naming. mate-polkit had its own process and its own .wants symlink, so
+# both halves were observable. noctalia registers a NoctaliaPolkitListener from
+# inside the shell process, and polkit exposes no way to ask which agent is
+# registered -- the only definitive probe is to call pkexec, which either pops a
+# dialog or hangs, and neither belongs in this script.
+#
+# So if the shell is up, the agent is up; the Shell section below is where that
+# is checked. This line exists to name the consequence, because with mate-polkit
+# uninstalled and lxqt-policykit's drop-in retired there is nothing else on this
+# machine that could answer.
+pgrep -x noctalia >/dev/null \
+    && ok "polkit agent: noctalia (the only one -- mate-polkit is gone)" \
     || no "no polkit agent -- pkexec, bazzite-user-setup and ujust will hang"
-# Check the shipped .wants symlink directly: `is-enabled` reports vendor
-# /usr/lib/*.wants links inconsistently across systemd versions, and what
-# actually matters is that the link is there for the next login.
-[ -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service ] \
-    && ok "polkit agent wanted by sway-session.target" \
-    || no "polkit agent not wired to sway-session.target -- it will not return on next login"
+pgrep -f polkit-mate-authentication-agent >/dev/null \
+    && meh "a mate-polkit agent is ALSO running -- two agents, one a leftover" \
+    || ok "no second polkit agent"
+# Installed because sway-config-fedora hard-Requires it, and ABI-broken against
+# Qt 6.11 so it dies at exec. /etc/sway/config.d/95-autostart-policykit-agent.conf
+# retires the sway drop-in that used to run it on every single login.
+pgrep -f lxqt-policykit-agent >/dev/null \
+    && no "lxqt-policykit-agent is running -- its sway drop-in was not retired" \
+    || ok "lxqt-policykit correctly idle (installed, unstartable, retired)"
 pgrep -x gnome-keyring-d >/dev/null && ok "gnome-keyring running (Secret portal backend)" \
     || meh "gnome-keyring not running -- app passwords will not persist"
-pgrep -x swaync >/dev/null && ok "swaync running (notification daemon)" \
-    || no "swaync NOT running -- no notifications, and no volume/brightness OSD"
-# Both mako and swaync ship a D-Bus service file claiming
-# org.freedesktop.Notifications. swaync is started from sway-session.target so
-# it takes the name first; if mako is up instead, that ordering broke.
-pgrep -x mako >/dev/null \
-    && no "mako is running INSTEAD of swaync -- the bus name was taken by the wrong daemon" \
-    || ok "mako correctly idle (installed as the fallback only)"
-pgrep -x waybar >/dev/null && ok "waybar running" || meh "waybar not running"
+
+# The notification bus name.
+#
+# mako and swaync both shipped a D-Bus service file claiming
+# org.freedesktop.Notifications, and the whole reason swaync was started from
+# sway-session.target was to take the name before activation could choose wrongly.
+# Both are gone, and noctalia ships NO service file at all -- so nothing on this
+# machine is activatable for that name. If the shell is down, notify-send is a
+# silent no-op rather than a daemon start, and there is no fallback left.
+if busctl --user --no-pager status org.freedesktop.Notifications >/dev/null 2>&1; then
+    ok "org.freedesktop.Notifications has an owner"
+else
+    no "nothing owns org.freedesktop.Notifications -- notify-send will do nothing"
+fi
+
+# THE TRAY IS LOAD-BEARING FOR THE KEYRING, which is not obvious and is why it
+# is checked here rather than left to the bar.
+#
+# /usr/share/sway/config.d/95-xdg-desktop-autostart.conf runs
+# `wait-sni-ready && systemctl --user start sway-xdg-autostart.target`, and that
+# helper gives up after 25s with a non-zero exit if no StatusNotifier HOST has
+# appeared -- which kills the `&&`. waybar used to be that host; noctalia is now
+# (asserted against the binary in 18-noctalia-shell.sh). If it ever stops being
+# one, the symptom is not a missing tray, it is gnome-keyring's three autostart
+# entries never running.
+systemctl --user is-active --quiet sway-xdg-autostart.target \
+    && ok "sway-xdg-autostart.target active (the SNI host was found)" \
+    || no "sway-xdg-autostart.target inactive -- wait-sni-ready timed out; keyring autostart did not run"
+
+# Inverted from a liveness check into a leak check. waybar cannot be uninstalled
+# -- hard Requires of sway-config-fedora -- so the only thing keeping it off the
+# screen is /etc/sway/config.d/90-bar.conf.
+pgrep -x waybar >/dev/null \
+    && no "waybar is RUNNING -- /etc/sway/config.d/90-bar.conf did not retire Fedora's bar; there are two" \
+    || ok "waybar correctly idle (installed, retired by /etc/sway/config.d/90-bar.conf)"
+
 # foot is still in this list on purpose. It is no longer bound to anything, but
 # it is kept installed as a fallback: ghostty is GPU-accelerated and this is an
 # NVIDIA box, so losing it would mean no terminal at all.
-for b in ghostty foot rofi Thunar grimshot wl-copy swaylock blueman-manager nm-applet; do
+#
+# rofi, grimshot and swaylock are NOT in this list any more. Two of the three
+# cannot leave the image, but asserting their presence here would read as an
+# endorsement of tools nothing calls.
+for b in ghostty foot Thunar wl-copy blueman-manager noctalia; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
 
-# The bar's two helper scripts. Both are dotfiles, so a session that has never
-# had `just link-dotfiles` run against it will fail these -- which is the point:
-# without stats.sh the hardware glyph shows waybar's "unknown" and without
-# toggle.sh every quick toggle in the notification panel silently reports off.
-#
-# The check is the OUTPUT, not the file: stats.sh has to emit a parseable waybar
-# object (waybar keeps the last good value when a json module prints garbage, so
-# a broken script leaves a stale tooltip with nothing to say it is stale), and
-# toggle.sh has to answer `state` with exactly true or false, which is what
-# swaync's update-command consumes.
-if [ -x "$HOME/.config/waybar/stats.sh" ] \
-   && "$HOME/.config/waybar/stats.sh" json | python3 -c 'import json,sys; d=json.load(sys.stdin); raise SystemExit(0 if d.get("text") and "tooltip" in d else 1)' 2>/dev/null; then
-    ok "waybar/stats.sh emits a valid module object"
-else
-    no "waybar/stats.sh missing or not emitting valid JSON -- the bar's hardware glyph and its tooltip are dead (just link-dotfiles?)"
-fi
-for t in wifi bluetooth idle; do
-    case $([ -x "$HOME/.config/swaync/toggle.sh" ] && "$HOME/.config/swaync/toggle.sh" "$t" state 2>/dev/null) in
-        true|false) ok "swaync toggle.sh $t reports state" ;;
-        *) no "swaync toggle.sh $t does NOT print true/false -- that toggle will show off whatever the hardware says" ;;
-    esac
-done
-
-# nm-applet and blueman-applet are both INSTALLED and both deliberately not
-# autostarted: waybar draws their state itself, in the bar font, and their own
-# tray icons are full-colour artwork no stylesheet here can reach. Hidden=true in
-# ~/.config/autostart overrides /etc/xdg/autostart by basename. If one of these
-# comes back, the symptom is a duplicate icon in the tray rather than an error.
-for a in nm-applet blueman; do
-    if grep -qs '^Hidden=true' "$HOME/.config/autostart/$a.desktop"; then
-        ok "$a applet suppressed (Hidden=true)"
+# ddcutil is how brightness works on this machine AT ALL: /sys/class/backlight is
+# empty here -- both outputs are external -- so brightnessctl never had a device
+# and 60-bindings-brightness.conf was a no-op for as long as it existed.
+if command -v ddcutil >/dev/null; then
+    if compgen -G '/dev/i2c-*' >/dev/null; then
+        ok "ddcutil present with /dev/i2c-* (monitor brightness is possible)"
     else
-        meh "$a applet not suppressed -- expect a duplicate, unthemeable tray icon"
+        meh "ddcutil present but no /dev/i2c-* -- brightness keys will do nothing"
     fi
-done
+else
+    meh "ddcutil missing -- there is no other brightness path on this hardware"
+fi
+
+
+# blueman's applet is INSTALLED and deliberately not autostarted: the shell
+# draws bluetooth state itself, in its own icon font, and blueman's tray icon is
+# full-colour artwork no stylesheet here can reach. Hidden=true in
+# ~/.config/autostart overrides /etc/xdg/autostart by basename. If it comes back,
+# the symptom is a duplicate icon in the tray rather than an error.
+#
+# nm-applet USED TO BE IN THIS LOOP and is not any more, because
+# network-manager-applet is uninstalled -- so a Hidden=true override for it would
+# be shadowing an /etc/xdg/autostart entry that no longer exists. What made the
+# package removable is that noctalia registers as a real NetworkManager
+# SecretAgent, which nm-applet was silently the only provider of; that is
+# asserted against the binary in 18-noctalia-shell.sh, and the consequence is
+# checked below rather than here.
+if grep -qs '^Hidden=true' "$HOME/.config/autostart/blueman.desktop"; then
+    ok "blueman applet suppressed (Hidden=true)"
+else
+    meh "blueman applet not suppressed -- expect a duplicate, unthemeable tray icon"
+fi
+rpm -q --quiet network-manager-applet \
+    && meh "network-manager-applet is installed again -- it will race noctalia as NM's secret agent" \
+    || ok "network-manager-applet gone (noctalia is the NM secret agent)"
 
 # Hack Nerd Font Mono is vendored from the upstream release by
 # 10-sway-install.sh rather than installed as an RPM, since no repo this image
@@ -302,84 +349,281 @@ fc-list -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \
 # 10-sway-install.sh rewrites `set $term foot` in /etc/sway/config. sway expands
 # that variable at parse time into both `bindsym $mod+Return exec $term` and
 # rofi's `-terminal`, so if the rewrite ever silently no-ops -- an upstream
-# reformat of that line would do it -- both quietly revert to foot.
+# reformat of that line would do it -- $mod+Return quietly reverts to foot. The
+# second consumer is gone with rofi; the binding is not.
 grep -q '^set \$term ghostty$' /etc/sway/config \
     && ok "sway \$term is ghostty" \
-    || no "sway \$term is not ghostty -- \$mod+Return and rofi will open foot"
+    || no "sway \$term is not ghostty -- \$mod+Return will open foot"
 infocmp xterm-ghostty >/dev/null 2>&1 && ok "xterm-ghostty terminfo present" \
     || no "xterm-ghostty terminfo MISSING -- ssh and curses apps will misbehave"
 
-head_ "Locker (hyprlock + hypridle)"
-# THE important line in this file.
+head_ "Shell (noctalia)"
+# THE MOST IMPORTANT SECTION IN THIS FILE, and it inherits that title from the
+# locker section it replaces.
 #
-# Neither hyprlock.conf nor hypridle.conf can be validated at build time --
-# hypridle connects to Wayland before it parses anything, and hyprlock has no
-# validate-only mode -- and hyprlang ERRORS on unknown keys. So a typo in either
-# file means the unit exited at startup, and the only symptom is silence: no
-# auto-lock, no display blanking, discovered five minutes after you walk away.
-if systemctl --user is-active --quiet hypridle; then
-    ok "hypridle active -- idle lock and DPMS are armed"
-else
-    no "hypridle NOT active -- NOTHING will lock or blank this session"
-    printf '        last log lines:\n'
-    journalctl --user -u hypridle -b --no-pager -n 5 2>/dev/null | sed 's/^/        /'
-    # Restart=on-failure plus systemd's default start limit means five failures
-    # in ten seconds wedge the unit for the rest of the session. That is what
-    # happens when the config is linked AFTER login: hypridle died on a missing
-    # ~/.config/hypr/hypridle.conf before `just link-dotfiles` created it, and
-    # no later reload revives it. Clearing the limit is a separate step from
-    # starting it again.
-    printf '        wedged by the start limit? systemctl --user reset-failed hypridle \\\n'
-    printf '                                   && systemctl --user start hypridle\n'
+# noctalia is the bar, the launcher, the notification daemon, the volume and
+# brightness OSD, the clipboard history, the screenshot tool, the idle daemon,
+# the lock screen and the only authentication agent on this machine -- nine
+# subsystems behind one process. There is no mako left to take the notification
+# bus name, no swaync to fall back to, nothing bound to swayidle, and nothing
+# else that registers a polkit agent.
+#
+# The failure mode is the locker's, scaled up: the unit exits at startup and the
+# only symptom is silence. No bar, no notifications, no OSD, no lock, and pkexec
+# hangs instead of erroring. $mod+Return still opens a terminal -- that binding
+# is in /etc/sway/config and does not go through the shell -- which is the one
+# thing that makes this recoverable from inside the session.
+#
+# And nothing at build time has ever seen the config this session is running:
+# dotfiles/ is excluded from the build context. `just check-shell-config` is the
+# other half of this section.
+noctalia_fail_at_start=$fail
+
+rpm -q --quiet noctalia && ok "noctalia installed ($(rpm -q noctalia 2>/dev/null))" \
+    || no "noctalia NOT installed -- there is no desktop shell on this image"
+# Fedora, not Terra. The greeter comes from Terra and the shell does not; if
+# Terra ever wins this name the vendor changes and the version line jumps.
+if rpm -q --quiet noctalia; then
+    [[ "$(rpm -q --queryformat '%{VENDOR}' noctalia)" == "Fedora Project" ]] \
+        && ok "noctalia is the Fedora build" \
+        || meh "noctalia vendor is $(rpm -q --queryformat '%{VENDOR}' noctalia) -- expected Fedora Project"
 fi
-command -v hyprlock >/dev/null && ok "hyprlock present" || no "hyprlock MISSING"
-# Neither binary has built-in defaults, so SOME config has to be findable or
-# there is no locker at all. The image ships the floor at /etc/xdg/hypr
-# (16-hyprlock.sh) -- the last entry in hyprutils' search order, so a linked
-# dotfile shadows it. Without it, a login before `just link-dotfiles` never
-# locks and never blanks.
-for c in hypridle hyprlock; do
-    test -s "/etc/xdg/hypr/$c.conf" \
-        && ok "image fallback /etc/xdg/hypr/$c.conf present" \
-        || no "image fallback $c.conf MISSING -- a login before link-dotfiles has no locker"
-done
-hl_user="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprlock.conf"
-if test -s "$hl_user"; then
-    ok "hyprlock.conf from dotfiles (shadows the image fallback)"
-    hl_live="$hl_user"
-elif test -s /etc/xdg/hypr/hyprlock.conf; then
-    meh "no dotfiles hyprlock.conf -- running the image fallback (run: just link-dotfiles)"
-    hl_live=/etc/xdg/hypr/hyprlock.conf
+
+# The successor to `systemctl --user is-active hypridle`, which the README calls
+# the most important line in this file. Same reasoning, larger blast radius.
+if systemctl --user is-active --quiet noctalia; then
+    ok "noctalia.service active"
 else
-    no "no hyprlock.conf anywhere -- hyprlock exits 1 and there is NO lock screen"
-    hl_live=""
+    no "noctalia.service NOT active -- no bar, no notifications, no lock, no polkit"
+    journalctl --user -u noctalia -b -n 5 --no-pager 2>/dev/null | sed 's/^/      /'
 fi
-# $HOME expands in a hyprlock path via hyprlang's env substitution; ~ does not.
-# A tilde here is the silent failure mode -- the background falls back to flat.
-if [[ -n "$hl_live" ]] && grep -q '^\s*path\s*=\s*~' "$hl_live" 2>/dev/null; then
-    no "hyprlock background path starts with ~ -- not expanded; use \$HOME"
+[ -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service ] \
+    && ok "noctalia wanted by sway-session.target" \
+    || no "noctalia not wired to sway-session.target -- it will not return on next login"
+
+# Exactly one. The binary takes a single-instance lock and a second invocation
+# exits with "noctalia is already running", so a second process is not a second
+# shell -- but it holds a Wayland connection and it is evidence something is
+# starting the shell twice.
+noctalia_procs=$(pgrep -xc noctalia || true)
+case "${noctalia_procs:-0}" in
+    1) ok "exactly one noctalia process" ;;
+    0) no "no noctalia process" ;;
+    *) no "$noctalia_procs noctalia processes -- something starts the shell twice" ;;
+esac
+
+# The behavioural check, and the direct successor to `noctalia-greeter sessions`
+# in the greeter section: it asks the running shell a question over its own IPC,
+# so it fails if the process is up but wedged.
+if noctalia msg status >/dev/null 2>&1; then
+    ok "noctalia msg status answers"
 else
-    ok "hyprlock background path does not rely on ~ expansion"
+    no "noctalia msg status does not answer -- the shell is up but not responding"
 fi
-# swaylock and swayidle stay installed, unbound, as the fallback pair.
-for p in swaylock swayidle; do
-    rpm -q --quiet "$p" && ok "$p still installed (fallback)" || no "$p removed -- no way back if hyprlock breaks"
-done
-# Fedora's swayidle drop-in must be retired. The override is comment-only
-# rather than zero bytes, so test for the absence of DIRECTIVES, not of bytes.
-swayidle_override="${XDG_CONFIG_HOME:-$HOME/.config}/sway/config.d/90-swayidle.conf"
-if [[ -f "$swayidle_override" ]]; then
-    if grep -qvE '^[[:space:]]*(#|$)' "$swayidle_override"; then
-        no "90-swayidle.conf has live directives -- swayidle and hypridle will both run"
+
+# THE VALIDATOR, run against the config this session actually merged.
+#
+# This is the thing the README's load-bearing section says does not exist for
+# anything in the login or lock path: hypridle connected to Wayland before
+# parsing anything and hyprlock had no validate-only mode, so one typo was a
+# dead locker with silence as the only symptom. `noctalia config validate` parses
+# headlessly, reports file:line:column and exits 1 -- 18-noctalia-shell.sh proves
+# that at build time against a known-good and a known-bad file, which is what
+# makes this run meaningful.
+if command -v noctalia >/dev/null; then
+    if noctalia_validate=$(noctalia config validate 2>&1); then
+        if [[ -n "$noctalia_validate" ]]; then
+            meh "noctalia config validates with warnings"
+            printf '%s\n' "$noctalia_validate" | sed 's/^/      /'
+        else
+            ok "noctalia config validates clean"
+        fi
     else
-        ok "Fedora's swayidle drop-in retired (override has no directives)"
+        no "noctalia config is INVALID"
+        printf '%s\n' "$noctalia_validate" | sed 's/^/      /'
+    fi
+fi
+
+# THE GUI SHADOW, which is this shell's answer to the dconf-vs-settings.ini trap
+# in the Theming section below, and just as silent.
+#
+# noctalia merges built-in defaults, then ~/.config/noctalia/*.toml, then
+# ~/.local/state/noctalia/settings.toml -- and the last of those is written by
+# clicking in the settings window and WINS. So a value tuned in the GUI silently
+# outranks the repo, is not version-controlled, and cannot be found by reading
+# dotfiles/. Deleting the file hands control back.
+if [ -s "$HOME/.local/state/noctalia/settings.toml" ]; then
+    meh "settings.toml exists and OUTRANKS dotfiles/noctalia -- rm ~/.local/state/noctalia/settings.toml to hand control back"
+else
+    ok "no GUI settings override (dotfiles/noctalia is what is running)"
+fi
+
+# THE PALETTE, asserted equal across the desktop and the login screen.
+#
+# The sixteen roles exist twice on purpose -- greeter.toml explains why sync is
+# not used -- and nothing at runtime notices if they drift. The login screen just
+# stops matching, which reads as a rendering difference rather than a bug.
+noctalia_palette="$HOME/.config/noctalia/palettes/bazzite-grey.json"
+noctalia_greeter_toml=/usr/share/factory/var/lib/noctalia-greeter/greeter.toml
+if [ -r "$noctalia_palette" ] && [ -r "$noctalia_greeter_toml" ]; then
+    if noctalia_pal_out=$(python3 - "$noctalia_palette" "$noctalia_greeter_toml" <<'PYEOF'
+import json, sys, tomllib
+shell = json.load(open(sys.argv[1]))["dark"]
+greeter = tomllib.load(open(sys.argv[2], "rb"))["appearance"]["palette"]
+camel = lambda k: "m" + "".join(p.capitalize() for p in k.split("_"))
+bad = {k: (shell.get(camel(k)), v) for k, v in greeter.items() if shell.get(camel(k)) != v}
+if bad:
+    print("; ".join(f"{k}: shell={s} greeter={g}" for k, (s, g) in sorted(bad.items())))
+    sys.exit(1)
+print(f"{len(greeter)} roles")
+PYEOF
+    ); then
+        ok "shell palette agrees with the greeter ($noctalia_pal_out)"
+    else
+        no "palette DRIFT between shell and greeter -- $noctalia_pal_out"
     fi
 else
-    no "no 90-swayidle.conf override -- Fedora's swayidle+swaylock drop-in is still active"
+    meh "cannot compare palettes (run just link-dotfiles?)"
 fi
+
+# THE LAYER-SHELL NAMESPACES, checked against what the compositor actually did.
+#
+# 25-effects.conf blurs the shell's surfaces by namespace, and `layer_effects`
+# takes a LITERAL string -- a wrong one is not an error, it is a panel that is
+# quietly not frosted, and 25-effects.conf:143-149 says so at length. sway-ipc
+# reports the effects it applied per surface, so this is the one check that can
+# tell "the rule matched" from "the rule is a typo".
+if command -v swaymsg >/dev/null && [ -n "${SWAYSOCK:-}" ]; then
+    noctalia_surfaces=$(swaymsg -t get_outputs -r 2>/dev/null | python3 -c '
+import json, sys
+seen = {}
+for o in json.load(sys.stdin):
+    for s in o.get("layer_shell_surfaces", []):
+        ns = s.get("namespace", "")
+        if ns.startswith("noctalia"):
+            seen[ns] = s.get("effects", {}).get("blur", False)
+print(" ".join(f"{k}={'blur' if v else 'PLAIN'}" for k, v in sorted(seen.items())))
+' 2>/dev/null)
+    if [[ -z "$noctalia_surfaces" ]]; then
+        no "no noctalia layer surfaces mapped -- the shell is not drawing anything"
+    elif [[ "$noctalia_surfaces" == *PLAIN* ]]; then
+        no "a noctalia surface is mapped but NOT blurred (namespace mismatch in 25-effects.conf): $noctalia_surfaces"
+    else
+        ok "noctalia layer surfaces blurred: $noctalia_surfaces"
+    fi
+fi
+
+# The four gap widgets. Read the plugin's own manifest rather than a hardcoded
+# list, so a widget dropped from the plugin shows up here instead of going quiet.
+noctalia_plugin="$HOME/.config/noctalia/plugins/bazzite-sway"
+if [ -r "$noctalia_plugin/plugin.toml" ]; then
+    noctalia_missing=""
+    while read -r entry; do
+        [ -r "$noctalia_plugin/$entry" ] || noctalia_missing="$noctalia_missing $entry"
+    done < <(python3 -c '
+import tomllib, sys
+d = tomllib.load(open(sys.argv[1], "rb"))
+for w in d.get("widget", []):
+    print(w["entry"])
+' "$noctalia_plugin/plugin.toml" 2>/dev/null)
+    if [ -z "$noctalia_missing" ]; then
+        ok "bazzite-sway plugin entries all present"
+    else
+        no "bazzite-sway plugin entries MISSING:$noctalia_missing"
+    fi
+    # And that the shell actually loaded it. A path source that is not enabled
+    # leaves the four widgets simply absent from the bar, with a validator
+    # warning nobody reads.
+    if noctalia msg plugins list 2>/dev/null | grep -q 'bazzite-sway'; then
+        ok "bazzite-sway plugin loaded by the shell"
+    else
+        no "bazzite-sway plugin NOT loaded -- mode, scratchpad, failed-units and hardware are absent from the bar"
+    fi
+else
+    meh "bazzite-sway plugin not linked (run just link-dotfiles?)"
+fi
+
+# The thresholds, which exist in two places for two consumers: [system.monitor]
+# in 50-services.toml is what the control centre colours against, and the
+# constants at the top of hardware.luau are what the bar glyph does. Two copies
+# of a threshold that disagree are worse than one copy in the wrong place, and
+# nothing at runtime would notice -- the bar would go bright at 80% while the
+# panel still called it fine.
+noctalia_luau="$noctalia_plugin/hardware.luau"
+noctalia_svc="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/50-services.toml"
+if [ -r "$noctalia_luau" ] && [ -r "$noctalia_svc" ]; then
+    if noctalia_thr=$(python3 - "$noctalia_luau" "$noctalia_svc" <<'PYEOF'
+import re, sys, tomllib
+luau = open(sys.argv[1]).read()
+def pair(name):
+    m = re.search(rf"local {name}_WARN,?\s*{name}_CRIT\s*=\s*(\d+),\s*(\d+)", luau)
+    if not m:
+        m = re.search(rf"local {name}_WARN,\s+{name}_CRIT\s+=\s+(\d+),\s+(\d+)", luau)
+    return (int(m.group(1)), int(m.group(2))) if m else None
+mon = tomllib.load(open(sys.argv[2], "rb"))["system"]["monitor"]
+want = {
+    "TEMP": (mon["cpu_temp_activity_threshold"], mon["cpu_temp_critical_threshold"]),
+    "CPU":  (mon["cpu_usage_activity_threshold"], mon["cpu_usage_critical_threshold"]),
+    "MEM":  (mon["ram_pct_activity_threshold"],   mon["ram_pct_critical_threshold"]),
+}
+bad = []
+for k, (w, c) in want.items():
+    got = pair(k)
+    if got is None:
+        bad.append(f"{k}: not found in hardware.luau")
+    elif got != (int(w), int(c)):
+        bad.append(f"{k}: luau={got} config=({int(w)},{int(c)})")
+if bad:
+    print("; ".join(bad)); sys.exit(1)
+print("temp/cpu/mem agree")
+PYEOF
+    ); then
+        ok "hardware thresholds agree with [system.monitor] ($noctalia_thr)"
+    else
+        no "hardware threshold DRIFT -- $noctalia_thr"
+    fi
+fi
+
+# The retired Fedora drop-ins, and the two processes that come back if one of
+# them stops matching. Generalises the old `pgrep -x swayidle` check, which
+# existed for exactly this reason.
+for f in 90-bar.conf 90-swayidle.conf 95-autostart-policykit-agent.conf \
+         60-bindings-screenshot.conf 60-bindings-volume.conf \
+         60-bindings-brightness.conf 60-bindings-media.conf; do
+    if [ ! -f "/etc/sway/config.d/$f" ]; then
+        no "/etc/sway/config.d/$f is GONE -- Fedora's $f is live again"
+    elif [ ! -f "/usr/share/sway/config.d/$f" ]; then
+        no "/usr/share/sway/config.d/$f no longer exists -- the retirement matches nothing (upstream rename?)"
+    elif grep -qvE '^[[:space:]]*(#|$)' "/etc/sway/config.d/$f"; then
+        no "/etc/sway/config.d/$f has live directives -- it is meant to be comment-only"
+    else
+        ok "$f retired"
+    fi
+done
 pgrep -x swayidle >/dev/null \
-    && no "swayidle is RUNNING alongside hypridle -- two idle daemons, both will lock" \
+    && no "swayidle is running -- two idle daemons, both locking the screen" \
     || ok "swayidle correctly idle"
+
+# Stale symlinks, which are not merely untidy in one directory.
+#
+# just link-dotfiles now prunes these, so a survivor means it has not been re-run
+# since the shell swap deleted twenty-one dotfiles. In ~/.config/sway/config.d/ a
+# dangling link is worse than clutter: layered-include globs the directory and
+# matches the link by name, so it SHADOWS the /etc or /usr/share drop-in of the
+# same name and sway says nothing.
+noctalia_stale=$(find "$HOME/.config" -xtype l 2>/dev/null | wc -l)
+if [ "$noctalia_stale" -eq 0 ]; then
+    ok "no dangling symlinks in ~/.config"
+else
+    meh "$noctalia_stale dangling symlink(s) in ~/.config -- run just link-dotfiles to prune"
+    find "$HOME/.config" -xtype l 2>/dev/null | sed 's/^/      /'
+fi
+
+if [[ $fail -gt $noctalia_fail_at_start ]]; then
+    printf '    recent noctalia journal:\n'
+    journalctl --user -u noctalia -b -n 10 --no-pager 2>/dev/null | sed 's/^/      /'
+fi
+
 
 head_ "Theming"
 fc-list -q 'Inter' && ok "Inter installed (GTK UI font)" || no "Inter MISSING -- GTK text falls back"
@@ -463,16 +707,35 @@ readlink /usr/share/icons/Papirus/48x48/places/user-home.svg 2>/dev/null | grep 
     || meh "user-home.svg not recoloured -- only the folder* half was linked"
 
 head_ "New helpers"
-for b in swaync-client cliphist swappy wlogout nmcli; do
+# What is left of this list after the shell swap. swaync-client, cliphist,
+# swappy and wlogout are all uninstalled; nmcli survives because it is still how
+# a network is configured from a script, and wtype because the clipboard's
+# auto-paste needs it.
+for b in nmcli wtype; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
-grep -q 'combi-modes drun#run#window' /etc/sway/config \
-    && ok "rofi combi includes window mode" \
-    || no "rofi window mode lost -- \$mod+d will not list open windows"
-for f in swaync/style.css swaync/config.json wlogout/layout mako/config hypr/hypridle.conf; do
-    test -e "${XDG_CONFIG_HOME:-$HOME/.config}/$f" \
-        && ok "$f linked" || no "$f NOT linked -- run: just link-dotfiles"
-done
+
+# The linked-dotfile check, glob-driven rather than a hardcoded list. The old
+# list named five files by hand and would have gone stale silently; this asks
+# whether the shell's config is linked at all, which is the thing that actually
+# stops the desktop looking like this repo.
+noctalia_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia"
+if compgen -G "$noctalia_cfg/*.toml" >/dev/null; then
+    noctalia_unlinked=""
+    for f in "$noctalia_cfg"/*.toml; do
+        [ -L "$f" ] || noctalia_unlinked="$noctalia_unlinked $(basename "$f")"
+    done
+    if [ -z "$noctalia_unlinked" ]; then
+        ok "noctalia config linked ($(compgen -G "$noctalia_cfg/*.toml" | wc -l) files)"
+    else
+        # Not a failure: a real file here outranks nothing and may be deliberate.
+        # But it is not this repo any more, and `just link-dotfiles` would rename
+        # it to .bak-<stamp> rather than merge it.
+        meh "noctalia config files are NOT symlinks:$noctalia_unlinked"
+    fi
+else
+    no "no noctalia config in $noctalia_cfg -- the shell is running on its own defaults; run: just link-dotfiles"
+fi
 
 head_ "Bazzite gaming stack intact"
 for b in steam gamescope mangohud; do

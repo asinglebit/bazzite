@@ -9,6 +9,11 @@ Nerd Font Mono and Inter), and every surface — bar, launcher, notification cen
 lock screen and login screen — drawn from the same seven-value palette. SwayFX supplies corner
 radius, dim-inactive and blur on the chrome; application windows stay opaque.
 
+All of those surfaces are one program. **noctalia** draws the bar, the notifications and their
+control centre, the launcher, the session menu, the lock screen, the on-screen display, the
+clipboard history, the screenshots and the polkit prompt, from one TOML directory and one
+palette — where there were nine programs with nine config languages and five stylesheets.
+
 Built for `ghcr.io/ublue-os/bazzite-nvidia-open:stable` on an RTX 4070 Ti
 (nvidia-open 610.x), Fedora 44.
 
@@ -113,15 +118,21 @@ The image carries the desktop; it deliberately carries none of the per-user conf
 of the dev toolchain. Two repos supply that, and they are independent — run both:
 
 ```bash
-# 1. Desktop config: monitor layout, appearance, effects, wallpaper, bar,
-#    launcher, notifications, power menu, lock screen. From this repo.
-#    Idempotent, backs up anything in the way.
+# 1. Desktop config: monitor layout, appearance, effects, wallpaper, and the
+#    shell -- bar, launcher, notifications, session menu, lock screen, OSD, all
+#    of it in dotfiles/noctalia/. From this repo. Idempotent, backs up anything
+#    in the way, and prunes symlinks this repo no longer ships.
 #
-#    The lock screen works without this -- the image ships a plain fallback at
-#    /etc/xdg/hypr -- but this is what themes it and puts the wallpaper behind
-#    it.
+#    THE DESKTOP WORKS WITHOUT THIS. The shell comes up on its own defaults --
+#    a working bar and launcher, just not in this palette -- because the image
+#    retires the Fedora drop-ins it replaces in /etc rather than here. What
+#    this adds is the greyscale, the layout and the four gap widgets.
 just link-dotfiles
 swaymsg reload
+
+# Optional: check the config as committed, independently of anything the
+# settings GUI has written over the top of it.
+just check-shell-config
 
 # 2. Shell, toolchains and terminal config. Separate repo, portable across OSs.
 git clone git@github.com:asinglebit/dotfiles.git ~/projects/personal/dotfiles
@@ -192,8 +203,8 @@ containers-storage ref it brands itself with matches that reality.
 | `Containerfile` | `FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable`; `ARG IMAGE_REGISTRY`, `IMAGE_TAG` |
 | `build_files/10-sway-install.sh` | Sway session + desktop essentials, NVIDIA env, black Papirus folders |
 | `build_files/15-swayfx.sh` | Swaps `sway` for `swayfx` from a COPR. Sets up the repo disabled, swaps in one transaction |
-| `build_files/16-hyprlock.sh` | `hyprlock` + `hypridle` from a COPR, the `hypridle.service` enablement symlink, and the `/etc/xdg/hypr` fallback configs |
-| `build_files/17-noctalia-greeter.sh` | `noctalia-greeter` from Terra, its GPU wrapper, its greyscale `greeter.toml` and the SELinux alias its state directory needs |
+| `build_files/17-noctalia-greeter.sh` | `noctalia-greeter` from Terra — the login screen, a **different product** from the `noctalia` shell that 18 installs — its GPU wrapper, its greyscale `greeter.toml` and the SELinux alias its state directory needs |
+| `build_files/18-noctalia-shell.sh` | The shell's systemd unit, the `/etc/sway/config.d/` retirements for the Fedora drop-ins it replaces, and the assertions — including the first build-time config validation this image has ever had |
 | `build_files/20-display-manager.sh` | greetd becomes the DM and is pointed at the greeter wrapper |
 | `build_files/30-kde-remove.sh` | Plasma removal |
 | `build_files/40-branding.sh` | os-release / image-info.json, removes the ublue MOTD banner, disables `uupd.timer` |
@@ -201,16 +212,16 @@ containers-storage ref it brands itself with matches that reality.
 | `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push to GHCR, cosign sign |
 | `cosign.pub` | Public half of the CI signing key. Committed on purpose; `cosign.key` never is |
 | `system_files/` | Files copied verbatim into the image |
-| `dotfiles/` | Per-user **desktop** config (monitor layout, appearance, effects, wallpaper, theming, bar, launcher, notifications, power menu, lock screen), symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. Desktop only — see below. |
+| `dotfiles/` | Per-user **desktop** config — monitor layout, appearance, effects, wallpaper, GTK theming, and `noctalia/`, which is the bar, launcher, notifications, session menu, lock screen and OSD in one place. Symlinked into `~/.config` by `just link-dotfiles`. Never enters the image. Desktop only — see below. |
 | `verify.sh` | Post-boot checks |
 
 ## Things that are load-bearing, and why
 
 **`dotfiles/` is scoped to the desktop, deliberately.** What lives here is what a functional
-Bazzite/SwayFX session needs and nothing else: the compositor and its effects, the bar, the
-wallpaper, the launcher, the notification centre, the power menu, the lock screen and its idle
-daemon, GTK theming, and `xdg-terminals.list`, which is the XDG wiring that makes Ghostty the
-default terminal. Everything that would still be useful on a different OS —
+Bazzite/SwayFX session needs and nothing else: the compositor and its effects, the wallpaper,
+the shell — `noctalia/`, which is one directory where the bar, the launcher, the notification
+centre, the power menu, the lock screen and the idle daemon used to be six — GTK theming, and
+`xdg-terminals.list`, which is the XDG wiring that makes Ghostty the default terminal. Everything that would still be useful on a different OS —
 shell config, toolchain versions via mise, tmux, Neovim, and Ghostty's own appearance — lives in
 [asinglebit/dotfiles](https://github.com/asinglebit/dotfiles) instead, which deploys with its
 own `install.sh` and has a per-OS `linux/` and `macos/` split.
@@ -302,67 +313,95 @@ to assert `rpm -q --whatprovides sway` rather than `rpm -q sway`, and the COPR's
 links `libwlroots-0.19.so` — the day Fedora retires that compat package this must fail the
 nightly build rather than ship a black screen.
 
-**Three third-party repos now, up from one.** Terra (ghostty), `swayfx/swayfx` (the compositor)
-and `scottames/hypr` (the locker). Terra was already trusted by the base image; neither COPR
-is. All three ship **disabled** in the image and are enabled for exactly one transaction each,
-because `--enable-repo` is a dnf5 global and a shared transaction would let any of them satisfy
-an unrelated package. This is the largest single change to the project's trust surface, and the
-locker's is the only one in the login path.
+**Two third-party repos, down from three.** Terra (ghostty, and the greeter) and
+`swayfx/swayfx` (the compositor). Terra was already trusted by the base image; the COPR is not.
+Both ship **disabled** in the image and are enabled for exactly one transaction each, because
+`--enable-repo` is a dnf5 global and a shared transaction would let either of them satisfy an
+unrelated package.
 
-`solopasha/hyprland` is the obvious choice for the Hyprland ecosystem and is deliberately *not*
-used: it builds for **rawhide only**, so its baseurl 404s on F44. Building hyprlock from source
-is also closed off — 0.9.x needs `hyprutils >= 0.8.0` and `hyprwayland-scanner >= 0.4.4` while
-F44 ships 0.7.1 and 0.4.2. Of the F44 COPRs that do carry a working build, `scottames/hypr` was
-picked as the narrowest: 43 packages, and no `hyprland` compositor among them, so a repo left
-lying disabled in `/etc/yum.repos.d` cannot satisfy "a compositor" on a machine running SwayFX.
+The third was `scottames/hypr`, and it went with the locker. **noctalia is in Fedora proper** —
+`updates`, vendor `Fedora Project`, asserted as both in `18-noctalia-shell.sh` and in CI — so
+the change that replaced nine programs with one is the only subsystem this image has added that
+widened its trust surface by nothing at all. `30-kde-remove.sh` asserts the COPR file is absent
+rather than trusting that deleting the script removed it.
 
-**The locker is hyprlock, and it is why swayidle is gone.** swaylock cannot blur, so once the
-bar, launcher and notification centre are frosted it is the one surface left that visibly
-cannot match. hyprlock works here despite being a Hyprland project — its `CMakeLists.txt` binds
-only `ext-session-lock-v1`, `wlr-screencopy`, `linux-dmabuf`, `viewporter`, `fractional-scale`,
-`cursor-shape` and `tablet-v2`, all of which sway 1.11 provides, and no hyprland-\* protocol or
-IPC.
 
-But it has no daemonize flag, and Fedora's `90-swayidle.conf` runs `swayidle -w`, which blocks
-until each command returns. `swaylock -f` forks once locked, so "the command exited" means "the
-screen is locked"; hyprlock does not exit until you authenticate. Pointed at hyprlock, swayidle
-blocks for the whole duration of the lock and the display-off timeout never fires — the
-monitors stay on all night. So that drop-in is retired by a comment-only same-name override in
-`dotfiles/sway/config.d/`, and **hypridle** replaces it as a systemd user unit.
+**One shell, and no rung below it.** waybar, SwayNotificationCenter, mako, rofi, wlogout,
+hyprlock, hypridle, cliphist, mate-polkit, grimshot and swappy are all either uninstalled or
+retired. What replaced them is a single systemd user unit, `noctalia.service`, wanted by
+`sway-session.target` — the arrangement swaync and hypridle both used, for the reasons beside
+the polkit agent in `10-sway-install.sh`.
 
-Two hypridle features do not work on sway and are deliberately unused: `on_lock_cmd`,
-`on_unlock_cmd` and `inhibit_sleep = 3` all need `hyprland-lock-notify-v1`. `inhibit_sleep` is
-pinned to `1` (a plain logind delay inhibitor) rather than left at the default `2` ("auto"),
-which resolves to the same thing here but silently. What is genuinely lost is swaylock's
-`SIGUSR1` "unlock and exit": `loginctl unlock-session` no longer dismisses the locker, so you
-authenticate at the keyboard.
+The cost is concentration. That one process is the bar, the launcher, the notification daemon,
+the volume and brightness OSD, the clipboard history, the screenshot tool, the idle daemon, the
+lock screen and the only authentication agent on the machine. Nothing is left to fall back to
+for any of them: no mako to take the notification bus name, nothing bound to swayidle, and no
+second polkit agent — so `pkexec`, `ujust` and `bazzite-user-setup` hang rather than fail. If
+the unit is dead the session is a compositor and a wallpaper, and **the only symptom is
+silence**. `$mod+Return` still opens a terminal, because that binding is in `/etc/sway/config`
+and does not go through the shell; that is what makes it recoverable from inside the session.
 
-**Nothing in the login or lock path can be checked *by the thing that reads it* at build
-time.** `sway -C` validated the old greeter config without touching a device, and that check
-left with the sway-hosted greeter: noctalia-greeter has no validate-only mode, its compositor
-wants DRM and a logind seat, and neither of its subcommands reads `greeter.toml` at all — so a
-misspelled key is ignored in silence. `17-noctalia-greeter.sh` gets as close as it can, checking
-the file as TOML and asserting the palette, and runs `noctalia-greeter sessions` for the one
-behavioural check that does work in a container. The locker never had one — hypridle connects to Wayland *before* it parses
-anything, and hyprlock has no validate-only mode either. hyprlang errors on unknown keys, so one
-typo is a dead locker *and* a dead display-off timer, and the only symptom is silence. That is
-why `verify.sh` checks `systemctl --user is-active hypridle`, and why it is the most important
-line in the file. The build asserts file *contents* instead — every command line that ends up
-nested inside another config gets grepped back out — and everything behavioural moved to
-`verify.sh`.
+Compare the greeter, which keeps `tuigreet` installed and unbound as the rung below it. There
+is no equivalent for a session shell, because the packages that used to be one are gone from the
+image and their configs are gone from `dotfiles/`. See `#known-limitations` for what a rollback
+does and does not restore.
 
-A hyprlock config *can* be parse-checked outside the build, just not inside it — run it against
-a throwaway headless nested sway, which needs no display and cannot touch the real session:
+**Most of the nine could not actually be uninstalled.** `sway-config-fedora` — which owns
+`/etc/sway/config`, `start-sway`, `layered-include` and the wayland-sessions entry, so it cannot
+be dropped — hard-`Requires` `waybar`, `swaylock`, `swayidle`, `swaybg`, `grimshot`,
+`brightnessctl`, `playerctl` and `lxqt-policykit`. Plain `Requires`, not `Recommends`; `grim`
+and `slurp` come behind `grimshot`. Excluding a hard dependency makes the transaction
+unresolvable, so the cull is two operations: seven packages genuinely leave, and eight stay on
+disk retired by a comment-only file of the same name in `/etc/sway/config.d/`.
 
-```bash
-printf 'exec sh -c "timeout 6 hyprlock -c %s; swaymsg exit"\n' /etc/xdg/hypr/hyprlock.conf > /tmp/n.conf
-WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 sway --unsupported-gpu -c /tmp/n.conf
-```
+`rofi` is the one that needed an `--exclude`, and not for the obvious reason:
+`sway-config-fedora` *Recommends* `rofi-wayland`, there is no such package in F44, and the
+`rofi` package **Provides** that name — so the pull-back comes through the provide and deleting
+the install-list entry does nothing.
 
-A good file reaches `Locking session` and `PAMPROMPT: Password:`; a bad one exits 1 naming the
-key it choked on. Two lines on the way out are noise and say nothing about the config —
-`Failed to get backend DRM FD` from the headless backend, and `Unable to receive IPC response`
-from `swaymsg exit` racing sway's own shutdown.
+**The retirements are in `/etc`, not in `dotfiles/`.** `layered-include` merges
+`/usr/share/sway/config.d` → `/etc/sway/config.d` → `~/.config/sway/config.d` by basename, later
+winning, so either of the last two would retire a Fedora drop-in. Only `/etc` exists at first
+login. From `dotfiles/`, a login before `just link-dotfiles` had ever run would get two bars and
+two idle daemons both locking the screen — which is the trap the old locker set for itself and
+then fixed with its `/etc/xdg/hypr` floor. Doing it in the image also makes each retirement
+assertable at build time, and makes `sudo rm /etc/sway/config.d/90-bar.conf` a real way back to
+a working, unthemed bar: bootc 3-way merges `/etc`, so the deletion sticks across upgrades.
+
+One ordering fact decided which files those are. `layered-include` emits its includes in
+basename sort order, so `40-bindings.conf` is read *before* `60-bindings-volume.conf` and a
+`bindsym` there loses to the package's. The volume, brightness, media and screenshot drop-ins
+had to be retired rather than out-bound.
+
+
+**The login screen still cannot be checked by the thing that reads it. The shell now can.**
+`sway -C` validated the old greeter config without touching a device, and that check left with
+the sway-hosted greeter: noctalia-greeter has no validate-only mode, its compositor wants DRM
+and a logind seat, and neither of its subcommands reads `greeter.toml` at all — so a misspelled
+key is ignored in silence. `17-noctalia-greeter.sh` gets as close as it can, checking the file
+as TOML and asserting the palette, and runs `noctalia-greeter sessions` for the one behavioural
+check that does work in a container.
+
+The locker never had one either, and that was the worse half: hypridle connected to Wayland
+*before* it parsed anything, hyprlock had no validate-only mode, and hyprlang errors on unknown
+keys — so one typo was a dead locker *and* a dead display-off timer, discovered five minutes
+after walking away.
+
+`noctalia config validate` is the mode that was missing. It parses headlessly, reports
+`file:line:column` and exits 1, so `18-noctalia-shell.sh` runs it at build time against a
+known-good file *and* a known-bad one — the negative half matters, because a validator that
+accepted everything would pass the positive check alone. That makes it the first thing in this
+image's session path that is checked by the software that reads it.
+
+What it still cannot check is this repo's actual config, and the reason is structural rather
+than fixable: `.containerignore` excludes `dotfiles/`, and the Containerfile's `ctx` stage
+copies `build_files/` and `system_files/` only, so the shell's TOML is not in the build context
+at all. `.github/workflows/build.yml` even declares `paths-ignore: dotfiles/**`, on the grounds
+that nothing there can change the image. Two things close that gap from outside the build:
+`just check-shell-config`, which validates the config **as committed** with
+`NOCTALIA_CONFIG_HOME` pointed at the repo — deliberately bypassing the GUI state file that
+would otherwise outrank it — and `verify.sh`, which validates what the running session actually
+merged.
 
 **The greeter gets the same trick, packaged as `just greeter-preview`.** Its compositor is plain
 wlroots, so `WLR_BACKENDS=wayland` makes it open a window inside the running session instead of
@@ -385,18 +424,30 @@ tells you the login screen looks right, not that it comes up on this GPU. And it
 from a deployment that already *has* the greeter, so it is a re-theming tool, not a pre-flight
 check. Only a reboot answers the GPU question.
 
-**Both locker configs have a floor in the image, at `/etc/xdg/hypr/`.** Neither binary has
-built-in defaults, and `hypridle.service` carries `Restart=on-failure` — so five failures in ten
-seconds hit systemd's default start limit and wedge the unit for the whole session. A login
-*before* `just link-dotfiles` therefore used to get a desktop that never locked and never
-blanked, with the only symptom being silence, and that made the dotfiles repo a hard dependency
-of the desktop. `/etc/xdg/hypr` is the last entry in hyprutils' search order
-(`$XDG_CONFIG_HOME/hypr` → `$HOME/.config/hypr` → `$XDG_CONFIG_DIRS/hypr` → `/etc/xdg/hypr`), so
-`dotfiles/hypr/` still wins the moment it is linked. The fallbacks are deliberately not copies:
-hypridle's keeps the same 300/360 timings so linking the dotfiles changes how the lock screen
-looks and not when it fires, while hyprlock's drops the wallpaper (it cannot depend on a
-dotfile) and shows password dots, because the fallback is what an unfamiliar or half-provisioned
-machine gets and being able to see that the keyboard works matters more there.
+**The palette is stated twice, and asserted equal.** The sixteen Material roles live in
+`system_files/.../greeter.toml` for the login screen and in
+`dotfiles/noctalia/palettes/bazzite-grey.json` for the desktop, the second being the first in
+noctalia 5's JSON spelling (`surface` becomes `mSurface`). `noctalia msg greeter-sync` exists
+and would write one from the other; it is **not** used, and the reason is mechanical.
+`tmpfiles.d` recreates the greeter's `/var` copy from `/usr/share/factory` on **every** boot —
+the `r` then `C` pair — so a sync write survives until the next reboot and no longer, and would
+look like the sync silently failing. A static palette needs no sync. Both `verify.sh` and
+`just check-shell-config` compare the two files role by role, because nothing at runtime
+notices if they drift: the login screen just stops matching the desktop, which reads as a
+rendering difference rather than a bug.
+
+**Blur is the compositor's, and it always will be.** noctalia asks for
+`ext_background_effect_manager_v1` — the protocol a client uses to have the compositor blur
+behind its own surface — and SwayFX 0.5.2 does not advertise it. It is one of exactly two
+protocols the shell wants and does not get; the other is `ext_workspace_manager_v1`, which is
+why workspaces come over i3 IPC via `$SWAYSOCK` instead.
+
+So every frosted surface on this desktop is a `layer_effects` line in
+`25-effects.conf`, keyed on a **literal** layer-shell namespace, and a rename upstream does not
+error — it silently stops blurring one surface. The namespaces were read out of
+`/usr/bin/noctalia`, `18-noctalia-shell.sh` asserts each one is still in the binary, and
+`verify.sh` goes further: `swaymsg -t get_outputs` reports the effects the compositor actually
+applied per layer surface, so it can tell "the rule matched" from "the rule is a typo".
 
 **Black folders are baked into the image, not configured.** `papirus-folders` works by replacing
 `folder*.svg` with symlinks inside `/usr/share/icons/Papirus/`, which is read-only at runtime —
@@ -425,10 +476,30 @@ third-party repo dependency.
 `set` variables at parse time, and that file uses `$term` twice — the `$mod+Return` binding and
 rofi's `-terminal` — both already baked by the time the layered include on the last line reads
 `~/.config/sway/config.d/`. A late `set $term ghostty` there does nothing at all, which is why
-the build seds the source line and asserts the result. `foot` stays installed but unbound as a
-fallback, since ghostty is GPU-accelerated and this is an NVIDIA box; note it is a *weak*
-dependency of `sway-config-fedora`, so dropping it later needs `--exclude=foot` rather than just
-deleting the line from the list.
+the build seds the source line and asserts the result. The second of those two uses is dead text
+now: rofi is gone and `$menu` with it, and `$mod+d` is rebound over the top from
+`40-bindings.conf` — which works precisely because a later `bindsym` *does* replace an earlier
+one, unlike a `set`. That asymmetry is the whole reason one of them is a sed and the other is
+not. `foot` stays installed but unbound as a
+fallback, since ghostty is GPU-accelerated and this is an NVIDIA box.
+
+**Weak dependencies are off, and a comment in `10-sway-install.sh` claimed the opposite for
+months.** The Bazzite base ships `install_weak_deps=False` in `/etc/dnf/dnf.conf`, so nothing in
+this image arrives because something `Recommends` it — every package the desktop needs is in
+that install list by name. The claim was measured rather than read, and it cost a build to find:
+noctalia `Recommends` `ddcutil`, `upower`, `gnome-keyring` and `wtype`, and after installing it
+only `wtype` was missing. The other three were already present from the base image, installed
+nineteen hours earlier by its own build — which is exactly why the wrong comment survived. Both
+`ddcutil` and `wtype` are now explicit and asserted, because both are load-bearing: `ddcutil` is
+the *only* brightness path on this hardware (`/sys/class/backlight` is empty — both outputs are
+external, so `brightnessctl` never had a device), and `wtype` is the clipboard panel's
+auto-paste.
+
+One consequence worth keeping straight: `sway-config-fedora` *Recommends* `rofi-wayland`, and
+the `rofi` package Provides that name, so the obvious reading is that `rofi` needs an
+`--exclude`. With weak deps off it does not — deleting the list entry is enough, verified against
+the built image. The exclude stays as a guard for the day `dnf.conf` changes, not because it is
+what removes rofi today.
 
 **`base-image-name` stays `kinoite`** in `image-info.json`. It's the runtime DE oracle read
 by `bazzite-user-setup`, `80-bazzite.just` and `82-bazzite-sunshine.just`; any other value
@@ -456,7 +527,7 @@ rollback.
   ([gamescope#1662][gs], still open).
 - If the cursor misbehaves, add `WLR_NO_HARDWARE_CURSORS=1` to `/etc/sway/environment`.
 - Screen sharing via `xdg-desktop-portal-wlr` is whole-output only — no window picker. The
-  bar's `privacy` module is there because of this: when something is capturing, it is capturing
+  bar's `privacy` widget is there because of this: when something is capturing, it is capturing
   everything.
 - **No HDR and no Vulkan renderer** — the latter is SwayFX's GLES2-only `fx_renderer`, above.
 - If the greeter ever fails to start you get a black screen, not a TTY: greetd is
@@ -486,11 +557,36 @@ rollback.
 - **No `bash -l` escape hatch at the login prompt.** The session list is
   `/usr/share/wayland-sessions` and nothing else, so the old `/etc/greetd/environments` trick of
   offering a login shell is gone. `Ctrl+Alt+F2`.
-- `loginctl unlock-session` does not dismiss hyprlock — no `SIGUSR1` equivalent. Authenticate
-  at the keyboard.
-- Blur is only visible through a translucent surface, which is why `waybar/style.css`,
-  `rofi/config.rasi` and `swaync/style.css` draw their backgrounds at alpha. Making any of them
-  opaque does not disable blur, it just hides it — the compositor still pays for it.
+- Blur is only visible through a translucent surface, which is why the bar, the panels and the
+  OSD carry `background_opacity` values below 1 in `dotfiles/noctalia/`. Making any of them
+  opaque does not disable blur, it just hides it — the compositor still pays for it. And it is
+  the compositor's: SwayFX does not implement `ext_background_effect_manager_v1`, so the shell
+  cannot blur behind its own surfaces even if asked.
+- **The settings GUI outranks this repo.** noctalia merges its defaults, then
+  `~/.config/noctalia/*.toml`, then `~/.local/state/noctalia/settings.toml` — and the last of
+  those is written by clicking in the settings window and wins. So a value tuned in the GUI
+  silently shadows `dotfiles/noctalia/`, is not version-controlled, and cannot be found by
+  reading this repo. `verify.sh` reports the file if it exists; deleting it hands control back,
+  and `just check-shell-config` validates what is committed regardless of it.
+- **A rollback restores the image, not `dotfiles/`.** The waybar, swaync, rofi, wlogout and
+  hyprlock configs were deleted from the working tree in the same commit that added the shell,
+  so `just rollback` gives back a deployment whose packages expect configs that are no longer
+  on disk. Recovering the old desktop is `git checkout <commit-before-the-switch> -- dotfiles/`
+  followed by `just link-dotfiles`, on top of the rolled-back deployment. The image and the
+  dotfiles roll back separately and neither knows about the other.
+- **A broken shell is recoverable without a rollback, and that is deliberate.** The eight
+  packages the shell replaced but could not uninstall are retired by comment-only files in
+  `/etc/sway/config.d/`. `sudo rm /etc/sway/config.d/90-bar.conf` and log out, and Fedora's
+  stock waybar is back; the same for `90-swayidle.conf` (swayidle + swaylock) and
+  `60-bindings-screenshot.conf` (grimshot on `Print`). Unthemed, but a desktop. bootc 3-way
+  merges `/etc`, so those deletions persist across upgrades — and `verify.sh` reports each
+  missing file, which is how you find out you did it and forgot.
+- **No screen recording.** noctalia's stock capture is stills. `grim`, `slurp` and `grimshot`
+  are still on disk — they cannot leave — but nothing is bound to them and there is no recorder.
+- **The shell is the youngest thing on the desktop path, and there is no rung below it.**
+  noctalia 5.0.1 is the first stable release of a ground-up C++ rewrite, and upstream's open
+  bugs for this codebase family cluster on multi-output DRM teardown — which is this machine's
+  shape, two panels at 82 and 163 PPI. The greeter keeps `tuigreet`; the shell keeps nothing.
 - `rpm -V papirus-icon-theme` reports its `folder*.svg` as modified. That is the black-folder
   recolour, not corruption.
 - Lost with Plasma, which is always removed: Sunshine virtual monitors / KWin screencast,

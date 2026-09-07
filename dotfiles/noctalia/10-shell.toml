@@ -1,0 +1,163 @@
+# The shell itself: what it owns, and the surfaces that are not the bar.
+
+[shell]
+# THE MOST CONSEQUENTIAL LINE IN THIS DIRECTORY, and it is off by default.
+#
+# mate-polkit is uninstalled and lxqt-policykit's sway drop-in is retired
+# (system_files/etc/sway/config.d/95-autostart-policykit-agent.conf), so this is
+# the only authentication agent on the machine. With no agent, pkexec, ujust and
+# bazzite-user-setup do not fail -- they HANG, with no error anywhere. That is
+# the failure mode 10-sway-install.sh has a paragraph about, and this is the
+# switch that avoids it.
+polkit_agent = true
+
+# Inter, as everywhere else in this desktop: the gschema override, the greeter,
+# and the GTK apps. Note this is NOT the bar's old font. waybar was set in Hack
+# Nerd Font Mono because its glyphs WERE Nerd Font glyphs; noctalia ships its own
+# icon font (noctalia-tabler.ttf), so the mono face is no longer load-bearing for
+# anything but the terminal, and the bar can read as UI text rather than as a
+# monospace dump.
+font_family = "Inter"
+
+# The desktop has exactly one corner radius, 8px, which SwayFX applies to whole
+# surfaces from 25-effects.conf. This scales noctalia's radii for the elements
+# INSIDE a surface -- list rows, buttons, sliders -- which the compositor cannot
+# reach. Set by eye, not calculated.
+corner_radius_scale = 1.0
+
+# SwayFX draws shadows and rounding for every layer surface here, keyed on
+# namespace. Anything noctalia draws would sit inside that, as a second shadow
+# on an already-shadowed panel.
+popup_shadows = false
+
+# Hairlines, matching #2e2e2e's role in the palette.
+card_borders   = true
+button_borders = true
+input_borders  = true
+popup_borders  = true
+
+time_format = "{:%H:%M}"
+date_format = "%A, %x"
+
+# Off: this is an image, not a first run. The wizard would appear on every fresh
+# install before `just link-dotfiles` had put this file in place.
+setup_wizard_enabled = false
+telemetry_enabled    = false
+
+# The clipboard history that cliphist and rofi-clipboard.sh used to be. The
+# encrypted store is noctalia's own; `storage` is left at its default so the key
+# comes from the secret service, which gnome-keyring already provides and
+# gnome-keyring-pam already unlocks at login.
+clipboard_enabled             = true
+clipboard_history_max_entries = 100
+clipboard_keep_from_closed_apps = true
+
+    # Screen capture. grimshot/grim/slurp/swappy are retired -- noctalia goes
+    # straight to zwlr_screencopy_manager_v1, so region capture is not routed
+    # through the whole-output-only portal.
+    #
+    # WHAT WENT WITH THEM: screen RECORDING. There is no recorder in this image
+    # any more, and noctalia's capture is stills only.
+    [shell.screenshot]
+    freeze_screen       = true
+    copy_to_clipboard   = true
+    save_to_file        = true
+    show_cursor         = false
+    confirm_region      = false
+    remember_last_region = true
+
+    # Where each surface opens. The control centre and the session menu are
+    # ATTACHED -- anchored under the bar widget that opens them, which is what
+    # made the status pill one control surface. The launcher and the clipboard
+    # are centred, as rofi was.
+    [shell.panel]
+    control_center_placement = "attached"
+    control_center_position  = "auto"
+    session_placement        = "attached"
+    session_position         = "auto"
+    launcher_placement       = "floating"
+    launcher_position        = "center"
+    clipboard_placement      = "floating"
+    clipboard_position       = "center"
+    polkit_placement         = "floating"
+    polkit_position          = "center"
+    floating_layer           = "overlay"
+    borders                  = true
+    shadow                   = false
+
+    # The launcher rofi used to be. providers behind a prefix character: /calc,
+    # /emoji, /windows, /session, /wallpaper. The window mode is what
+    # /etc/sway/config's own TODO was waiting on rofi for.
+    [shell.launcher]
+    provider_prefix = "/"
+    sort_by_usage   = true
+    show_icons      = true
+    categories      = true
+    app_grid        = false
+    compact         = false
+
+    [shell.animation]
+    enabled = true
+    speed   = 1.0
+
+    # Never. See 20-theme.toml -- the greeter's /var copy is refreshed from the
+    # image on every boot, so a sync write does not survive a reboot.
+    [shell.greeter_sync]
+    auto_sync = false
+
+# The OSD this desktop has never had. /usr/share/sway/config.d/60-bindings-
+# volume.conf and -brightness.conf faked one by sending a notification with an
+# `int:value` hint for swaync to render as a progress bar; both drop-ins are
+# retired and these are the real thing.
+[osd]
+enabled            = true
+position           = "top_center"
+background_opacity = 0.72
+border             = true
+scale              = 1.0
+# Empty means every monitor. Naming connectors here would be the mistake the
+# bar's own comment refuses.
+monitors           = []
+
+    [osd.kinds]
+    volume             = true
+    volume_output      = true
+    volume_input       = true
+    brightness         = true
+    dnd                = true
+    nightlight         = true
+    caffeine           = true
+    media              = true
+    privacy            = true
+    lock_keys          = true
+    bluetooth          = true
+    wifi               = true
+    # This is a desktop: no keyboard backlight, and one layout.
+    keyboard_backlight = false
+    keyboard_layout    = false
+    power_profile      = true
+
+# Notifications. swaync drew these at the top right with a 320px control centre
+# beside them; the geometry carries over.
+[notification]
+enable_daemon      = true
+position           = "top_right"
+background_opacity = 0.72
+border             = true
+show_app_name      = true
+show_actions       = true
+collapse_on_dismiss = true
+monitors           = []
+
+# Brightness over DDC/CI.
+#
+# This is new capability rather than a port. waybar's config dropped `backlight`
+# as "not applicable to a desktop", which was true of an internal panel and never
+# true of these two monitors -- /sys/class/backlight is empty here, so
+# brightnessctl and the retired 60-bindings-brightness.conf never did anything.
+# ddcutil talks to the monitors over I2C instead, and ships the udev rule that
+# gives the seat user access to /dev/i2c-*.
+[brightness]
+enable_ddcutil     = true
+sync_all_monitors  = false
+minimum_brightness = 0.0

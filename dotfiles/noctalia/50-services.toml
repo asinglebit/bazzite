@@ -1,0 +1,163 @@
+# Idle, lock, wallpaper, thresholds, plugins.
+
+# --- Idle and lock -----------------------------------------------------------
+#
+# This replaces hypridle, and before that swayidle. The timings are the ones
+# dotfiles/hypr/hypridle.conf used: lock at 300s, displays off at 360s.
+#
+# WHAT THE CLASS OF BUG WAS, since it shaped two previous attempts. `swayidle -w`
+# blocks until each command returns. `swaylock -f` forks once the screen is
+# locked, so "the command exited" meant "the screen is locked"; hyprlock never
+# exits until you authenticate, so pointing swayidle at hyprlock blocked for the
+# whole duration of the lock and the display-off timeout never fired -- the
+# monitors stayed on all night. hypridle fixed it by not being swayidle.
+#
+# noctalia's lock screen and idle daemon are the same process, so there is no
+# command to block on and nothing to sequence. Both behaviours are off by
+# default; `enabled` is what turns each one on.
+[idle]
+behavior_order = [ "lock", "screen-off" ]
+
+    [idle.behavior.lock]
+    enabled = true
+    action  = "lock"
+    timeout = 300.0
+
+    [idle.behavior.screen-off]
+    enabled = true
+    action  = "screen_off"
+    # 60s after the lock, as before -- long enough to see the lock screen appear
+    # and stop it, short enough that the panels are not lit all night.
+    timeout = 360.0
+
+    # NOT enabled. This machine does not suspend on idle; before_sleep_cmd used
+    # to hand that to logind, and [lockscreen] lock_before_suspend below is the
+    # successor.
+    [idle.behavior.lock-and-suspend]
+    enabled = false
+
+[lockscreen]
+enabled              = true
+# The successor to hypridle's `before_sleep_cmd = loginctl lock-session`, and
+# more reliable than it: it is inside the process that owns the lock.
+lock_before_suspend  = true
+allow_empty_password = false
+# hyprlock blurred the wallpaper at blur_passes 2 / blur_size 6 / brightness 0.4.
+# This blurs the DESKTOP instead of loading an image, which needs no path -- and
+# so does not make the lock screen depend on `just link-dotfiles` having run, the
+# concern that put a fallback config in /etc/xdg/hypr for the old locker.
+blurred_desktop      = true
+blur_intensity       = 0.5
+tint_intensity       = 0.3
+monitors             = []
+
+# --- Wallpaper: sway keeps it ------------------------------------------------
+#
+# noctalia has a wallpaper service and it is off. Two reasons, and the first is
+# mechanical: [wallpaper] takes a DIRECTORY to cycle, not a file, and this
+# desktop has one tracked PNG in dotfiles/sway/wallpaper.png. The second is that
+# sway paints the background before anything else starts, so leaving it there
+# means there is no window between the compositor coming up and the shell
+# starting in which the screen is bare.
+#
+# `output * bg` in 20-appearance.conf is still the wallpaper setter. Turning this
+# on would mean two things painting the same surface, with the winner decided by
+# startup order.
+[wallpaper]
+enabled = false
+
+# --- Alert thresholds --------------------------------------------------------
+#
+# These are the numbers dotfiles/waybar/stats.sh applied, moved from a shell
+# script into config. 85C is where this box's part pulls clocks back; 95% of 24
+# threads means the machine is not yours.
+#
+# They live here rather than in the widget so that the control centre, any future
+# sysmon widget and the bazzite-sway:hardware plugin all colour against the same
+# figures -- the plugin reads them rather than carrying its own copy.
+[system.monitor]
+enabled = true
+
+cpu_usage_activity_threshold = 80.0
+cpu_usage_critical_threshold = 95.0
+cpu_temp_activity_threshold  = 75.0
+cpu_temp_critical_threshold  = 85.0
+ram_pct_activity_threshold   = 85.0
+ram_pct_critical_threshold   = 95.0
+
+# NO cpu_temp_sensor_path, DELIBERATELY.
+#
+# The knob exists and it is a hardware constant. stats.sh found the sensor BY
+# NAME rather than by index for a measured reason: thermal_zone0 on this box is
+# `acpitz`, a chassis sensor that sits near 28C, and the package sensor is zone 1
+# *today*. A path written down here would be wrong the first time the kernel
+# reordered them, and it would be wrong quietly. Left empty, noctalia discovers
+# it -- and verify.sh reports the temperature it settled on, so a discovery that
+# picks the chassis sensor is visible rather than merely plausible.
+cpu_temp_sensor_path = ""
+
+# 10s, as the custom/hardware module's interval was: one wakeup every ten
+# seconds was fewer than the three 5s modules it replaced.
+cpu_poll_seconds    = 10.0
+memory_poll_seconds = 10.0
+
+# Night light, which wlsunset was installed for and never wired to anything.
+# Off until asked for: it is a gamma ramp over the whole output, and this
+# desktop's palette is calibrated grey.
+[nightlight]
+enabled = false
+
+# --- The control centre ------------------------------------------------------
+#
+# The quick toggles swaync's buttons-grid carried, which were wifi, bluetooth and
+# an idle toggle driven by dotfiles/swaync/toggle.sh -- a script that existed
+# only because swaync spawned an argv with no shell and tore inline quotes in
+# half. `caffeine` is the idle toggle now, and it is a first-class control rather
+# than `systemctl --user stop hypridle`.
+[control_center]
+show_session_button = true
+sidebar             = "compact"
+
+    [[control_center.shortcuts]]
+    type = "wifi"
+
+    [[control_center.shortcuts]]
+    type = "bluetooth"
+
+    [[control_center.shortcuts]]
+    type = "caffeine"
+
+    [[control_center.shortcuts]]
+    type = "notification"
+
+# --- Plugins ----------------------------------------------------------------
+#
+# The four things noctalia has no widget for: sway's binding-mode indicator, the
+# scratchpad count, failed systemd units, and hardware readings as one glyph with
+# an alert. All four are entries in one plugin under this directory.
+#
+# The two upstream git sources are DISABLED. This is an image: a shell that
+# fetches and updates code from GitHub in the background is a shell whose
+# contents are not what the commit says they are. auto_update is off for the
+# same reason.
+[plugins]
+auto_update = "none"
+enabled     = [ "asinglebit/bazzite-sway" ]
+
+    [[plugins.source]]
+    name     = "bazzite-sway"
+    kind     = "path"
+    location = "~/.config/noctalia/plugins"
+    enabled  = true
+
+    [[plugins.source]]
+    name     = "official"
+    kind     = "git"
+    location = "https://github.com/noctalia-dev/official-plugins"
+    enabled  = false
+
+    [[plugins.source]]
+    name     = "community"
+    kind     = "git"
+    location = "https://github.com/noctalia-dev/community-plugins"
+    enabled  = false

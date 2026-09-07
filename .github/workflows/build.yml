@@ -145,7 +145,7 @@ jobs:
 
           # Session essentials, cheap to assert and expensive to discover at boot.
           readlink -f /etc/systemd/system/display-manager.service | grep -q greetd
-          test -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
+          test -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
           test -e /usr/share/wayland-sessions/sway.desktop
 
           # The terminal. ghostty comes from Terra -- as does noctalia-greeter
@@ -200,23 +200,55 @@ jobs:
           # config is indistinguishable from a broken one. See the note in
           # build_files/15-swayfx.sh. verify.sh does this at runtime instead.
 
-          # The launcher gained window switching via a second sed in
-          # 10-sway-install.sh. Same failure mode as the $term one above: an
-          # upstream reformat makes it a silent no-op.
-          grep -q 'combi-modes drun#run#window' /etc/sway/config
+          # THE SHELL. Everything this desktop is made of except the compositor
+          # is behind this one package -- bar, launcher, notifications, OSD,
+          # clipboard, screenshots, idle, lock screen, and the only
+          # authentication agent on the machine. This step runs AFTER the
+          # rechunk precisely to prove the assets tree and the enablement
+          # symlink survived it.
+          #
+          # From Fedora proper, unlike swayfx and the greeter, so the vendor is
+          # asserted: a Terra build winning this name would be a different
+          # version line arriving silently.
+          rpm -q noctalia >/dev/null
+          [[ "$(rpm -q --queryformat '%{VENDOR}' noctalia)" == "Fedora Project" ]]
+          test -x /usr/bin/noctalia
+          test -d /usr/share/noctalia/assets/templates
+          test -f /usr/lib/systemd/user/noctalia.service
+          noctalia_libs="$(ldd /usr/bin/noctalia)"
+          [[ "$noctalia_libs" == *libEGL*            ]]
+          [[ "$noctalia_libs" == *libGLESv2*         ]]
+          # The three services whose absence is silent: no polkit agent means
+          # pkexec and ujust hang, no SecretAgent means a password-protected
+          # wifi network cannot be joined, and no StatusNotifierHost means
+          # wait-sni-ready times out and gnome-keyring's autostart never runs.
+          [[ "$noctalia_libs" == *libpolkit-agent-1* ]]
+          grep -aq 'org.freedesktop.NetworkManager.SecretAgent' /usr/bin/noctalia
+          grep -aq 'org.kde.StatusNotifierHost'                 /usr/bin/noctalia
 
-          # The locker, from the third-party COPR. swaylock and swayidle are
-          # asserted too because they are the documented way back if hyprlock
-          # breaks, and an autoremove would take them silently.
-          rpm -q hyprlock hypridle swaylock swayidle >/dev/null
-          hyprlock_libs="$(ldd /usr/bin/hyprlock)"
-          [[ "$hyprlock_libs" == *libEGL* || "$hyprlock_libs" == *libgbm* ]]
-          test -L /usr/lib/systemd/user/sway-session.target.wants/hypridle.service
+          # The seven packages it replaced that could actually leave. rofi is
+          # the one needing --exclude: sway-config-fedora Recommends
+          # rofi-wayland and the `rofi` package PROVIDES that name, so dropping
+          # it from the install list is not enough. This is the assertion that
+          # the exclude is still there.
+          for p in rofi SwayNotificationCenter mako wlogout cliphist swappy \
+                   mate-polkit hyprlock hypridle; do
+            ! rpm -q "$p" >/dev/null
+          done
 
-          # The notification daemon, and the symlink that makes it win the
-          # org.freedesktop.Notifications race against mako.
-          test -L /usr/lib/systemd/user/sway-session.target.wants/swaync.service
-          test -x /usr/bin/swaync
+          # And the ones that CANNOT go: hard Requires of sway-config-fedora,
+          # still on disk, retired by /etc overrides instead. Assert both halves
+          # -- if Fedora ever drops one of these Requires, the package vanishes
+          # and its override starts retiring nothing, which looks exactly like an
+          # override that is working.
+          rpm -q waybar swaylock swayidle grimshot lxqt-policykit >/dev/null
+          for f in 90-bar.conf 90-swayidle.conf 95-autostart-policykit-agent.conf \
+                   60-bindings-screenshot.conf 60-bindings-volume.conf \
+                   60-bindings-brightness.conf 60-bindings-media.conf; do
+            test -f "/usr/share/sway/config.d/$f"
+            test -f "/etc/sway/config.d/$f"
+            ! grep -qvE '^[[:space:]]*(#|$)' "/etc/sway/config.d/$f"
+          done
 
           # The greeter. noctalia-greeter brings its own wlroots 0.20
           # compositor, so nothing hosts it and /etc carries only greetd's own
@@ -235,7 +267,18 @@ jobs:
           # line proving it is the greyscale copy rather than something stock.
           test -s /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
           grep -q '^surface *= *"#1a1a1a"$' /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
-          grep -q '^C+ /var/lib/noctalia-greeter/greeter.toml' /usr/lib/tmpfiles.d/bazzite-sway.conf
+          # The `r` then `C` pair, and NOT `C+`. This assertion used to read
+          # `^C+ /var/lib/...` and could never pass: the shipped file has `C`
+          # with no plus, and build_files/20-display-manager.sh asserts the
+          # ABSENCE of `C+`. Both could not be true, so this step had been
+          # failing since the two landed in the same commit. The distinction is
+          # load-bearing -- `C+` only descends into a non-empty destination
+          # DIRECTORY, and over an existing destination FILE both C and C+ skip
+          # silently, which meant greeter.toml landed once on initial
+          # provisioning and never again.
+          grep -qE '^r[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]*$' /usr/lib/tmpfiles.d/bazzite-sway.conf
+          grep -qE '^C[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]'  /usr/lib/tmpfiles.d/bazzite-sway.conf
+          ! grep -qE '^C\+[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml'        /usr/lib/tmpfiles.d/bazzite-sway.conf
           # The SELinux alias, without which the state directory lands as
           # var_lib_t and xdm_t cannot write it -- a blank login screen.
           grep -q '^/var/lib/noctalia-greeter /var/lib/greetd$' \
@@ -274,11 +317,16 @@ jobs:
           # The COPRs must ship DISABLED, like terra.repo. An enabled
           # third-party repo in the artifact would let a later transaction on a
           # booted machine pull from it, and bootc would 3-way merge the file.
-          for f in /etc/yum.repos.d/_copr_swayfx-swayfx.repo \
-                   /etc/yum.repos.d/_copr_scottames-hypr.repo; do
+          for f in /etc/yum.repos.d/_copr_swayfx-swayfx.repo; do
             test -f "$f"
             grep -q '^enabled=0$' "$f"
           done
+          # And the one that went. The hypr COPR left with 16-hyprlock.sh, which
+          # takes this image from three third-party repos to two -- noctalia
+          # itself is Fedora `updates`, so the shell swap added no trust root at
+          # all. "The script is deleted" and "the repo file is not in the
+          # artifact" are different claims; this is the second.
+          test ! -f /etc/yum.repos.d/_copr_scottames-hypr.repo
 
           echo "image checks passed"
           EOF

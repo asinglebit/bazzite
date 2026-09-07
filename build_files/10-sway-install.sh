@@ -4,29 +4,74 @@ set -euxo pipefail
 
 CTX="${CTX:-/ctx}"
 
-# Weak deps stay ON deliberately: that is how sway-config-fedora pulls in
-# grimshot, rofi, qt5/qt6-qtwayland, xdg-user-dirs and sway-systemd. It also
-# matches what Fedora Sway Atomic ships.
+# WEAK DEPS ARE OFF, and this comment used to say the opposite.
+#
+# /etc/dnf/dnf.conf in the Bazzite base carries `install_weak_deps=False`, so
+# nothing here gets a package because something Recommends it. That was measured,
+# not read: noctalia Recommends ddcutil, upower, gnome-keyring and wtype, and
+# after installing it only wtype was absent -- the other three were already in
+# the base image, installed 19 hours earlier by its own build.
+#
+# So every package this desktop needs has to be in this list by name. The old
+# claim that "weak deps stay ON deliberately: that is how sway-config-fedora
+# pulls in qt5/qt6-qtwayland, xdg-user-dirs, foot and sway-systemd" was wrong on
+# the mechanism and right by accident: those four are present, but from the base
+# image and from this list, not from a Recommends.
+#
+# --- WHY THE SHELL CULL IS TWO DIFFERENT OPERATIONS -------------------------
+#
+# noctalia replaced nine programs. Only some of them could be UNINSTALLED,
+# because sway-config-fedora -- which owns /etc/sway/config, start-sway,
+# layered-include and the wayland-sessions entry, and so cannot itself be
+# dropped -- hard-*Requires* most of them:
+#
+#     $ rpm -q --requires sway-config-fedora
+#     brightnessctl  grimshot  lxqt-policykit  playerctl  swaybg
+#     swayidle  swaylock  waybar  ...
+#
+# Those are plain Requires, not Recommends. So waybar, swaylock, swayidle,
+# swaybg, grimshot (which drags grim and slurp, as does
+# xdg-desktop-portal-wlr), brightnessctl, playerctl and lxqt-policykit ARE
+# STILL INSTALLED and always will be. They are gone from the list below because
+# nothing here asks for them any more, not because that removes them.
+#
+# What retires them instead is a comment-only file of the same name in
+# /etc/sway/config.d/, shipped by 18-noctalia-shell.sh -- see the long note
+# there. Do not try to --exclude any of them: excluding a hard dependency makes
+# the transaction unresolvable, which is a failed build rather than a smaller
+# image.
+#
+# ROFI IS THE ONE EXCEPTION, and the trap is worth writing down because the
+# obvious reading of the dependency list is wrong. sway-config-fedora
+# *Recommends* rofi-wayland, and there is no such package in F44 -- the `rofi`
+# package Provides that name:
+#
+#     $ rpm -q --provides rofi | grep wayland
+#     rofi-wayland = 2.0.0-2.fc44
+#
+# With install_weak_deps=False that Recommends is inert, so deleting `rofi` from
+# the list below is in fact enough today -- verified absent from the built image.
+# The exclude stays anyway, and cheaply: it is the guard for the day that dnf.conf
+# changes or this list is built somewhere it has not been read, and excluding by
+# name works precisely because nothing else in the repos satisfies that provide.
+#
+# Genuinely uninstalled by this change: rofi, SwayNotificationCenter, mako,
+# wlogout, cliphist, swappy, mate-polkit -- verified with
+# `rpm -q --whatrequires` as required by nothing.
 # --exclude is a dnf5 GLOBAL option: it has to come before the subcommand.
-dnf5 --exclude=sway-config-upstream install -y \
+dnf5 --exclude=sway-config-upstream,rofi install -y \
     sway \
     sway-config-fedora \
     sway-systemd \
     swaybg \
-    swayidle \
-    swaylock \
     greetd \
     tuigreet \
     xdg-desktop-portal-wlr \
     xdg-desktop-portal-gtk \
     gnome-keyring \
     gnome-keyring-pam \
-    mate-polkit \
-    waybar \
+    noctalia \
     foot \
-    rofi \
-    mako \
-    wlogout \
     Thunar \
     thunar-archive-plugin \
     xarchiver \
@@ -34,24 +79,78 @@ dnf5 --exclude=sway-config-upstream install -y \
     gvfs-mtp \
     pavucontrol \
     imv \
-    grim \
-    slurp \
-    grimshot \
     wl-clipboard \
+    wtype \
+    ddcutil \
     wlr-randr \
     kanshi \
     wlsunset \
-    brightnessctl \
-    playerctl \
-    network-manager-applet \
     blueman \
     wev \
-    SwayNotificationCenter \
-    cliphist \
-    swappy \
     adw-gtk3-theme \
     papirus-icon-theme-dark \
     rsms-inter-fonts
+
+# THE SHELL, and what it replaced.
+#
+# noctalia draws the bar, the notifications and their control centre, the
+# launcher, the session menu, the lock screen, the OSD, the clipboard history,
+# the screenshots, the wallpaper and the polkit prompt -- one package where there
+# were nine, from one TOML config and one palette. It is in Fedora proper, so
+# unlike ghostty below and noctalia-greeter in 17-, it needs no repo enabled and
+# belongs in the list above rather than a transaction of its own.
+#
+# What it took over, split by whether the package could actually leave.
+#
+# UNINSTALLED -- nothing requires these, so they are gone from the image:
+#
+#   SwayNotificationCenter  -> notifications + control centre
+#   mako                    -> was already only swaync's unbound fallback
+#   rofi                    -> the launcher, and `noctalia dmenu` for scripts
+#   wlogout                 -> `noctalia msg session`
+#   cliphist                -> the clipboard panel
+#   swappy                  -> nothing. The annotator went with the grim path.
+#   mate-polkit             -> NoctaliaPolkitListener, asserted in 18-
+#   network-manager-applet  -> noctalia is the NM SecretAgent, asserted in 18-
+#   hyprlock / hypridle     -> [lockscreen] and [idle]   (16-hyprlock.sh, deleted)
+#
+# STILL ON DISK, retired by /etc/sway/config.d/ overrides in 18- because
+# sway-config-fedora hard-Requires them:
+#
+#   waybar                  -> the bar             (dotfiles/noctalia/30-bar.toml)
+#   swaylock / swayidle     -> [lockscreen] and [idle]
+#   grimshot / grim / slurp -> `noctalia msg screenshot-*`
+#   brightnessctl           -> [shell] brightness, over DDC/CI via ddcutil
+#   playerctl               -> the MPRIS service behind the media widget
+#   lxqt-policykit          -> NoctaliaPolkitListener
+#   swaybg                  -> NOT retired. sway spawns it for `output * bg`,
+#                              which still paints the wallpaper: see
+#                              dotfiles/sway/config.d/20-appearance.conf.
+#
+# ddcutil and wtype are in the list above BY NAME, and that is the correction
+# this change had to make: they are noctalia Recommends, weak deps are off here,
+# and both are load-bearing.
+#
+#   ddcutil is what gives a DESKTOP brightness control at all. The waybar config
+#   dropped backlight as "not applicable to a desktop", which was true of an
+#   internal panel and never true of these two monitors -- /sys/class/backlight
+#   is empty on this machine. It happened to be in the base image already, so
+#   the brightness keys would have worked today and broken silently the first
+#   time upstream dropped it.
+#
+#   wtype is the clipboard panel's auto-paste, and it was genuinely missing from
+#   the first build that installed noctalia -- which is how the weak-dep claim
+#   above came to be checked at all.
+#
+# 18-noctalia-shell.sh asserts both, next to the shell that needs them.
+#
+# blueman and pavucontrol STAY. They are applications, not shell: the deep
+# pairing dialogue and the routing/profile editor that a bar widget is not
+# trying to be. What went is blueman's tray applet, which was already
+# suppressed, and nm-applet, whose second job -- answering NetworkManager for
+# secrets -- noctalia now does properly. See dotfiles/autostart/.
+rpm -q noctalia
+test -x /usr/bin/noctalia
 
 # The terminal.
 #
@@ -131,12 +230,19 @@ fc-list -q 'Hack Nerd Font Mono'
 # the build, they just silently fall back at runtime to something that looks
 # almost right.
 #
-# adw-gtk3 is structural rather than cosmetic here. swaync is GTK4 +
-# libadwaita; wlogout, swappy, Thunar, nm-applet and blueman-manager are all
-# GTK3. Without it the new UI is split across two GTK eras. (pavucontrol was in
-# that GTK3 list until F44 rebuilt it against GTK4 -- it is themed through
-# adw-gtk3-dark's gtk-4.0/ directory now, so the package still earns its place
-# here either way.)
+# adw-gtk3 is structural rather than cosmetic here, and it survived the shell
+# swap for a reason that got NARROWER, not weaker. It used to be holding a split
+# desktop together: swaync was GTK4 + libadwaita while wlogout, swappy, Thunar,
+# nm-applet and blueman-manager were GTK3, so without it the shell itself was
+# drawn across two GTK eras.
+#
+# noctalia is neither -- it is a native EGL/GLES2 client and takes its colours
+# from dotfiles/noctalia/palettes/, not from GTK at all. So what is left to theme
+# is the APPLICATIONS: Thunar, imv, xarchiver, blueman-manager, and pavucontrol,
+# which was in that GTK3 list until F44 rebuilt it against GTK4 and is themed
+# through adw-gtk3-dark's gtk-4.0/ directory now. Both eras are still present
+# among them, so the package earns its place either way -- but a GTK regression
+# is now a wrong-looking file manager rather than a wrong-looking desktop.
 test -d /usr/share/themes/adw-gtk3-dark
 test -d /usr/share/icons/Papirus-Dark
 fc-list -q 'Inter'
@@ -258,86 +364,74 @@ rm -f /tmp/papirus-folders
 # long before the layered-include on the final line reads
 # ~/.config/sway/config.d/. A late `set $term ghostty` there does nothing at all.
 #
+# The second of those two uses is now dead text: rofi is gone and $menu with it.
+# The first is not, so the rewrite stays exactly as it was.
+#
 # Asserted because a silent no-op is invisible until you press $mod+Return and
 # get foot.
 sed -i 's|^set \$term foot$|set $term ghostty|' /etc/sway/config
 grep -q '^set \$term ghostty$' /etc/sway/config
 
-# Give the launcher window switching.
+# NO $menu REWRITE. There used to be a second sed here giving rofi's combi mode
+# window switching (`-combi-modes drun#run#window`), because F44's rofi 2.0.0
+# had gained the window mode that /etc/sway/config's own TODO was waiting for.
+# rofi is gone, so $menu is dead text: dotfiles/sway/config.d/40-bindings.conf
+# rebinds $mod+d over the top of it, which works precisely because a `bindsym`
+# in a later drop-in replaces an earlier one -- unlike a `set`, which is why the
+# $term rewrite above still has to happen at the source.
 #
-# /etc/sway/config builds $menu as
-#     rofi -terminal '$term' -show combi -combi-modes drun#run -modes combi
-# and carries the comment "TODO: add window with the next release of
-# rofi-wayland". F44 ships rofi 2.0.0, where that release has landed --
-# `rofi -h` reports "Detected modes: +window +run +ssh" -- so the TODO is
-# simply stale.
-#
-# Same reason as the $term rewrite above for doing it here rather than in a
-# config.d drop-in: sway expands `set` variables at parse time, so $menu is
-# already baked into the $mod+d binding long before the layered include reads
-# ~/.config/sway/config.d/.
-#
-# Asserted because a silent no-op is invisible until you press $mod+d and get
-# only applications.
-sed -i 's|-combi-modes drun#run|-combi-modes drun#run#window|' /etc/sway/config
-grep -q 'combi-modes drun#run#window' /etc/sway/config
+# noctalia's launcher has the window mode built in, plus calculator, emoji,
+# session and wallpaper providers behind prefix characters. See
+# dotfiles/noctalia/40-panels.toml.
 
-# The polkit authentication agent.
+# THE POLKIT AGENT, and why there is no longer a package or a unit for it here.
 #
-# Two separate traps here, both of which cost a boot to find:
+# noctalia is the agent now. It registers a NoctaliaPolkitListener on
+# /org/noctalia/PolkitAuthenticationAgent and links libpolkit-agent-1 --
+# 18-noctalia-shell.sh asserts that ldd line rather than trusting it, because it
+# is the single thing that made mate-polkit removable and a missing agent is
+# silent until something calls pkexec.
+#
+# What that retired, kept here because both traps cost a boot to find and both
+# are still true of anything that tries to be the agent on this image:
 #
 #  1. lxqt-policykit -- the obvious LXQt-agnostic choice -- is BROKEN on F44.
 #     It links libQt6Xdg, which uses Qt *private* API and has not been rebuilt
 #     against qt6-qtbase 6.11:
 #       symbol lookup error: /usr/lib64/libQt6Xdg.so.4: undefined symbol:
 #       _ZN14QObjectPrivateC2E16QtPrivate_6_11_2, version Qt_6.11_PRIVATE_API
-#     It installs fine and fails only at exec. mate-polkit is GTK3 and needs
-#     nothing that Thunar/nm-applet/blueman have not already pulled in.
-#     NOTE: lxqt-policykit stays installed regardless -- sway-config-fedora
-#     *hard-Requires* it, so it cannot be dropped without dropping the Fedora
-#     sway config. That is harmless: OnlyShowIn=LXQt means it never starts.
-#     Do not waste time trying to exclude it.
+#     It installs fine and fails only at exec. It also CANNOT be excluded:
+#     sway-config-fedora hard-Requires it. So it stays installed, and what
+#     changed is that it is no longer merely inert -- see 3.
 #
 #  2. Every packaged polkit agent ships an /etc/xdg/autostart entry guarded by
 #     OnlyShowIn= (LXQt;, MATE;, KDE;). XDG_CURRENT_DESKTOP is "sway", so the
 #     systemd XDG autostart generator skips all of them and the session comes
 #     up with NO agent at all -- pkexec, ujust and bazzite-user-setup then hang
-#     with no error. Bind the agent to sway-session.target instead of fighting
-#     OnlyShowIn.
-rpm -q mate-polkit
-test -x /usr/libexec/polkit-mate-authentication-agent-1
-
-install -Dpm0644 \
-    "${CTX}/system_files/usr/lib/systemd/user/polkit-mate-authentication-agent-1.service" \
-    /usr/lib/systemd/user/polkit-mate-authentication-agent-1.service
-
-# Ship the enablement symlink directly rather than relying on a user preset:
-# `systemctl --global enable` writes into /etc, which bootc then has to 3-way
-# merge on every upgrade, and user presets only run for users created later.
-install -d /usr/lib/systemd/user/sway-session.target.wants
-ln -sfn ../polkit-mate-authentication-agent-1.service \
-    /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
-
-# The notification daemon.
+#     with no error. That is why mate-polkit was bound to sway-session.target
+#     rather than fought through OnlyShowIn, and it is why noctalia is bound the
+#     same way in 18-noctalia-shell.sh.
 #
-# mako and swaync BOTH ship a D-Bus service file declaring
-# Name=org.freedesktop.Notifications -- fr.emersion.mako.service and
-# org.erikreider.swaync.service. Different filenames, so there is no RPM
-# conflict and both install cleanly, but which one D-Bus activates for a
-# duplicated name is not something to build a desktop on.
+#  3. NEW, and the one that is not about /etc/xdg/autostart at all:
+#     /usr/share/sway/config.d/95-autostart-policykit-agent.conf execs
+#     /usr/libexec/lxqt-policykit-agent from sway's own config, bypassing
+#     OnlyShowIn entirely. With mate-polkit bound to the session target that was
+#     a second agent racing a working one and losing loudly (see 1). With
+#     noctalia it would be a second agent racing a working one, so
+#     dotfiles/sway/config.d/95-autostart-policykit-agent.conf shadows that
+#     drop-in to nothing. verify.sh checks lxqt-policykit is installed and NOT
+#     running, which is the only way that shadow file's absence would show.
+
+# NO NOTIFICATION-DAEMON SYMLINK. swaync used to be started from
+# sway-session.target here, and the reason was a race: mako and swaync both ship
+# a D-Bus service file declaring Name=org.freedesktop.Notifications, different
+# filenames so no RPM conflict, and which one activation picks for a duplicated
+# name is not something to build a desktop on. Starting one from the target made
+# it own the bus name before any application could ask.
 #
-# So do not rely on activation at all. Starting swaync from the session target
-# means it owns the bus name before any application can ask for it, and mako's
-# activation entry is then never reached. Same reasoning, same mechanism as the
-# polkit agent above.
-#
-# mako stays installed and manually startable (`systemctl --user start mako`
-# after stopping swaync) -- the foot precedent. dotfiles/mako/config themes it
-# so that fallback is not the stock blue box either.
-ln -sfn ../swaync.service \
-    /usr/lib/systemd/user/sway-session.target.wants/swaync.service
-test -L /usr/lib/systemd/user/sway-session.target.wants/swaync.service
-test -f /usr/lib/systemd/user/swaync.service
+# Both are gone and noctalia owns that name, from its own unit, for the same
+# reason and by the same mechanism -- 18-noctalia-shell.sh. The race is gone
+# rather than won: nothing else in the image claims the name now.
 
 # nvidia-settings' autostart entry runs `nvidia-settings --load-config-only`,
 # which is an X11-only operation and exits 1 under a Wayland session. Harmless,

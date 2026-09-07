@@ -33,9 +33,15 @@ cursor-theme='Adwaita'
 color-scheme='prefer-dark'
 
 # Inter for proportional text, Hack Nerd Font Mono for fixed -- the same split
-# dotfiles/fontconfig/fonts.conf makes, and the same monospace face waybar,
-# ghostty, rofi and hyprlock name. The values replaced were Noto Sans and Fira
-# Code, neither of which was chosen by anything in this repo.
+# dotfiles/fontconfig/fonts.conf makes. The values replaced were Noto Sans and
+# Fira Code, neither of which was chosen by anything in this repo.
+#
+# THE MONO FACE IS NO LONGER LOAD-BEARING FOR THE DESKTOP, only for the terminal.
+# It used to be named by waybar, rofi and hyprlock as well, because their glyphs
+# were Nerd Font glyphs and a fallback to Noto meant tofu on the bar. noctalia
+# ships its own icon font (noctalia-tabler.ttf) and is set in Inter
+# (dotfiles/noctalia/10-shell.toml), so the remaining consumers are ghostty and
+# whatever asks GTK for a monospace font.
 font-name='Inter 10'
 document-font-name='Inter 10'
 monospace-font-name='Hack Nerd Font Mono 10'

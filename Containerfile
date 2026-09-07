@@ -24,11 +24,23 @@ ARG IMAGE_REGISTRY=""
 # arg because 40-branding.sh writes it into image-info.json.
 ARG IMAGE_TAG="sway"
 
+# A hash of everything in the ctx stage, passed by `just build-image`.
+#
+# It is referenced by the RUN below purely so podman folds it into that step's
+# cache key. Without it, editing build_files/ invalidates nothing -- the `ctx`
+# scratch stage keeps the scripts out of the base layer's cache key, which is the
+# point, but podman does not put the bind-mounted stage's content into the RUN's
+# key either. The result is a build that reports "Using cache", tags an image
+# identical to the previous one, and lets `just switch` find nothing to do.
+#
+# Defaulted so a bare `podman build` still works; it just gets the old behaviour.
+ARG CTX_DIGEST=""
+
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/build_files/build.sh
+    CTX_DIGEST="${CTX_DIGEST}" /ctx/build_files/build.sh
 
 RUN bootc container lint
 

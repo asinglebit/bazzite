@@ -77,13 +77,42 @@ rpm -q xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
 # A literal `rpm -q sway` fails here and takes the whole :sway build with it.
 rpm -q --whatprovides sway
 rpm -q sway-config-fedora sway-systemd greetd tuigreet
-# The locker and its idle daemon, plus the swaylock/swayidle pair kept as the
-# fallback. Removing Plasma must not have reached any of them.
-rpm -q hyprlock hypridle swaylock swayidle
-# The only polkit agent this image can actually run: polkit-kde is a Plasma
-# component and lxqt-policykit is ABI-broken against Qt 6.11 on F44.
-rpm -q mate-polkit
-test -L /usr/lib/systemd/user/sway-session.target.wants/polkit-mate-authentication-agent-1.service
+# THE SHELL. Everything this desktop is made of except the compositor is behind
+# this one package now -- bar, launcher, notifications, OSD, clipboard,
+# screenshots, idle, lock screen, and the only authentication agent on the
+# machine. A Plasma transaction that reached it would leave a bootable system
+# whose session is a compositor and a wallpaper.
+rpm -q noctalia
+test -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
+# The greeter is a DIFFERENT product on a different version line -- 1.x from
+# Terra against the shell's 5.x from Fedora -- and shares nothing with it but a
+# name and a palette. Asserted separately because removing Plasma has no reason
+# to touch either and every reason to be checked against both.
+rpm -q noctalia-greeter
+# Still installed because sway-config-fedora hard-Requires them, retired by the
+# /etc/sway/config.d/ overrides that 18-noctalia-shell.sh ships. Asserted for the
+# opposite reason to the line above: if Fedora ever stops requiring one of these,
+# it disappears and its override starts retiring nothing -- silently, since a
+# retirement file for a drop-in that no longer exists looks exactly like a
+# retirement file that is working.
+rpm -q waybar swaylock swayidle grimshot lxqt-policykit
+# And the seven that genuinely went. Not decoration: the whole point of the
+# transaction above is that it removes things, so the things this commit removed
+# on purpose have to be distinguishable from casualties.
+! rpm -q SwayNotificationCenter
+! rpm -q mako
+! rpm -q rofi
+! rpm -q wlogout
+! rpm -q cliphist
+! rpm -q swappy
+! rpm -q mate-polkit
+# hyprlock and hypridle are not removed by anything -- 16-hyprlock.sh, which was
+# the only thing that installed them, is deleted. Asserted because "the script is
+# gone" and "the packages are gone" are different claims, and a stray COPR
+# leftover would satisfy only the first.
+! rpm -q hyprlock
+! rpm -q hypridle
+test ! -f /etc/yum.repos.d/_copr_scottames-hypr.repo
 rpm -q btrfs-assistant bazzite-updater
 # breeze-icon-theme / breeze-cursor-theme are deliberately NO LONGER asserted.
 # They were only kept alive because gtk-{3,4}.0/settings.ini named breeze-dark

@@ -100,11 +100,16 @@ test -f /etc/sway/environment
 test -x /usr/bin/start-sway
 test -f /usr/share/wayland-sessions/sway.desktop
 
-# 10-sway-install.sh's two seds must still be in place -- swap replaced the
+# 10-sway-install.sh's sed must still be in place -- the swap replaced the
 # package that owns the binary, not the config, but assert it rather than
 # reason about it.
+#
+# There were two seds here. The second gave rofi's combi mode window switching
+# and is gone with rofi: noctalia's launcher has that built in, and $menu is
+# dead text that dotfiles/sway/config.d/40-bindings.conf rebinds $mod+d over.
+# Nothing asserts $menu any more BECAUSE nothing depends on its value -- see the
+# note where that sed used to be in 10-sway-install.sh.
 grep -q '^set \$term ghostty$' /etc/sway/config
-grep -q 'combi-modes drun#run#window' /etc/sway/config
 
 # NOT VALIDATED HERE: `sway -C`.
 #

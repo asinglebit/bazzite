@@ -31,11 +31,34 @@ insurance:
 #                     ref and 50-signing.sh skips the trust setup entirely.
 #   pull="missing"    reuse the cached base locally. CI passes `newer`, without
 #                     which a nightly rebuild could sit on a stale base forever.
+#
+# --- CTX_DIGEST, and the silent stale build it exists to prevent -------------
+#
+# The Containerfile runs build.sh with the repo bind-mounted from a `ctx` scratch
+# stage, deliberately, so that editing build_files/ does not invalidate the 5+ GiB
+# base image layer. The cost of that -- undocumented until it bit -- is that
+# podman's cache key for the RUN step does not include the bind-mounted stage's
+# content either. So editing a build script invalidates NOTHING, `podman build`
+# reports "Using cache", and you get a freshly tagged image that is byte-identical
+# to the last one. `just switch` then has nothing new to switch to and says so in
+# a way that reads like success. That is how a whole shell replacement got built,
+# tagged, switched and rebooted into without any of it being in the image.
+#
+# So the cache key gets the one thing it was missing: a hash of everything that
+# ends up in ctx. Base layer still cached, script edits still invalidate, and
+# nothing has to be remembered.
 [doc('Parameterised build. `just build` and CI both go through here.')]
 build-image tag="sway" registry="" pull="missing":
+    #!/usr/bin/bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    ctx_digest=$(find build_files system_files cosign.pub -type f -print0 \
+        | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
+    echo "ctx digest: ${ctx_digest}"
     sudo podman build --pull={{pull}} \
         --build-arg IMAGE_REGISTRY={{registry}} \
         --build-arg IMAGE_TAG={{tag}} \
+        --build-arg CTX_DIGEST="${ctx_digest}" \
         -t {{image}}:{{tag}} .
 
 # The image. Plasma removed, SwayFX and noctalia-greeter in its place. Tag: :sway
@@ -231,8 +254,94 @@ link-dotfiles:
         echo "  linked    $rel"
     done < <(find "$src" -type f -print0 | sort -z)
 
+    # Prune what this repo used to link and no longer ships.
+    #
+    # Until this existed, deleting a dotfile left a dangling symlink in
+    # ~/.config forever, and the shell swap deleted twenty-one of them at once.
+    # In most directories that is untidy. In sway/config.d/ it is not:
+    # layered-include globs that directory, so a dangling entry becomes an
+    # `include` of a path that does not resolve, and sway fails to load the file.
+    #
+    # Scoped to links whose TARGET is under $src, so this only ever removes
+    # something this repo put there -- never a link the user or another tool owns.
+    # That guard is the whole reason this is safe to run unattended.
+    #
+    # BOTH SIDES ARE CANONICALISED, and that is not defensive programming -- the
+    # naive prefix test silently matched NOTHING on this machine. /home is a
+    # symlink to /var/home on an ostree system, so `just` can report the justfile
+    # directory as either, and the existing links were created through the other
+    # one: comparing "/var/home/...dotfiles/mako/config" against a $src of
+    # "/home/...dotfiles" fails for every single link. `readlink -m` resolves the
+    # prefix without requiring the target to exist, which is the whole point here,
+    # since a dangling link is exactly what is being matched.
+    src_real="$(readlink -f "$src")"
+    while IFS= read -r -d '' link; do
+        tgt_real="$(readlink -m "$(readlink "$link")")"
+        [[ "$tgt_real" == "$src_real"/* ]] || continue
+        rm -- "$link"
+        echo "  pruned    ${link#"$dest"/}"
+    done < <(find "$dest" -xtype l -print0 2>/dev/null)
+
+    # And the directories those links used to live in (waybar/, swaync/, rofi/,
+    # wlogout/, mako/, swaylock/, hypr/). -empty means nothing the user added is
+    # at risk.
+    find "$dest" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+
     echo
     echo "Apply:  swaymsg reload"
+
+# Validate dotfiles/noctalia/ as committed, not as linked.
+#
+# WHY THIS IS A RECIPE AND NOT A BUILD ASSERTION. The image build cannot see this
+# config at all: .containerignore excludes dotfiles/, and the Containerfile's ctx
+# stage copies build_files/ and system_files/ only. So the same wall
+# 16-hyprlock.sh described for hyprlock applies -- except that this time there IS
+# a validator. `noctalia config validate` parses without a compositor, reports
+# file:line:column and exits 1 on error; 18-noctalia-shell.sh proves that at build
+# time against a known-good and a known-bad file, which is what makes this
+# meaningful.
+#
+# NOCTALIA_CONFIG_HOME points at the repo rather than ~/.config, and the state and
+# data dirs at a throwaway, for a specific reason: the settings GUI writes
+# ~/.local/state/noctalia/settings.toml and that file WINS over everything in
+# dotfiles/. Validating the linked config would therefore tell you whether the
+# merged result is valid, not whether what is committed is. This tells you the
+# second thing, which is the one a commit can be wrong about.
+[doc('Validate dotfiles/noctalia as committed, ignoring GUI overrides.')]
+check-shell-config:
+    #!/usr/bin/bash
+    set -euo pipefail
+    src="{{justfile_directory()}}/dotfiles"
+    [[ -d "$src/noctalia" ]] || { echo "no dotfiles/noctalia at $src" >&2; exit 1; }
+    command -v noctalia >/dev/null || { echo "noctalia is not installed" >&2; exit 1; }
+
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+
+    NOCTALIA_CONFIG_HOME="$src" \
+    NOCTALIA_STATE_HOME="$tmp/state" \
+    NOCTALIA_DATA_HOME="$tmp/data" \
+        noctalia config validate
+
+    # The palette exists twice by design -- see the note at the top of
+    # system_files/usr/share/factory/var/lib/noctalia-greeter/greeter.toml -- so
+    # check the two copies still say the same thing. This is the same comparison
+    # verify.sh makes against the DEPLOYED files; here it runs against the repo,
+    # so a drift is caught before it is committed rather than after it is booted.
+    python3 - "$src" <<'PY'
+    import json, sys, tomllib, pathlib
+    src = pathlib.Path(sys.argv[1])
+    greeter = src.parent / "system_files/usr/share/factory/var/lib/noctalia-greeter/greeter.toml"
+    g = tomllib.loads(greeter.read_text())["appearance"]["palette"]
+    s = json.loads((src / "noctalia/palettes/bazzite-grey.json").read_text())["dark"]
+    camel = lambda k: "m" + "".join(p.capitalize() for p in k.split("_"))
+    bad = {k: (s.get(camel(k)), v) for k, v in g.items() if s.get(camel(k)) != v}
+    if bad:
+        for k, (shell, gr) in sorted(bad.items()):
+            print(f"  {k}: shell={shell} greeter={gr}", file=sys.stderr)
+        sys.exit(f"palette drift: {len(bad)} of {len(g)} roles disagree")
+    print(f"  palette: {len(g)} roles agree with the greeter")
+    PY
 
 # Run the real login screen, nested, inside the session you are already in.
 #

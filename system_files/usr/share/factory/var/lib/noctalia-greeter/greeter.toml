@@ -30,12 +30,30 @@
 # that drifts with what was clicked last.
 
 [appearance]
-# "Synced" is the appearance path the palette below feeds. There is no Noctalia
-# shell installed on this image to sync FROM -- this is a greeter-only build --
-# and upstream documents `palette` as taking precedence over Sync, so the effect
-# is to pin the look to the values here. If a future version ignores the palette
-# in this mode, the fallback is to name a built-in scheme instead and re-check
-# it in `just greeter-preview`.
+# "Synced" is the appearance path the palette below feeds, and upstream documents
+# `palette` as taking precedence over Sync, so the effect is to pin the look to
+# the values here. If a future version ignores the palette in this mode, the
+# fallback is to name a built-in scheme instead and re-check it in
+# `just greeter-preview`.
+#
+# THERE IS NOW A NOCTALIA SHELL ON THIS IMAGE, and it is deliberately not synced
+# from. `noctalia msg greeter-sync` exists and would write this file from the
+# desktop's live palette; it is not used, and the reason is mechanical rather
+# than aesthetic. /usr/lib/tmpfiles.d/bazzite-sway.conf recreates the /var copy
+# of this file from /usr/share/factory on EVERY boot (the `r` then `C` pair), so
+# a sync write survives until the next reboot and no longer. A static palette
+# needs no sync.
+#
+# What that costs is that the sixteen roles below exist twice -- here, and in
+# dotfiles/noctalia/palettes/bazzite-grey.json, which is the shell's copy in
+# noctalia 5's JSON form (`surface` becomes `mSurface`, and so on). verify.sh
+# asserts the two agree, because nothing at runtime will notice if they drift:
+# the login screen just stops matching the desktop, which reads as a rendering
+# difference rather than a bug.
+#
+# Note the two products are unrelated apart from this. The greeter is
+# noctalia-greeter 1.x from Terra; the shell is noctalia 5.x from Fedora. Their
+# file trees are disjoint and 18-noctalia-shell.sh asserts it.
 scheme     = "Synced"
 theme_mode = "dark"
 
@@ -48,8 +66,9 @@ theme_mode = "dark"
 # counting characters pointless anyway.
 font_family = "Inter"
 
-# Corner radius. The desktop has exactly one, 8px -- rofi's, swaync's,
-# hyprlock's and sway's `corner_radius 8`. This is a SCALE over Noctalia's own
+# Corner radius. The desktop has exactly one, 8px -- sway's `corner_radius 8`,
+# applied to the shell's panels by namespace in
+# dotfiles/sway/config.d/25-effects.conf. This is a SCALE over Noctalia's own
 # radii rather than a pixel value, so it is set by eye in the nested preview
 # rather than calculated.
 corner_radius_scale = 1.0
@@ -70,8 +89,8 @@ power_buttons_position   = "bottom-right"
 # from a silent one) does not apply here, because something still moves.
 password_style = "random"
 
-# Greyscale, dark to light. Identical values to dotfiles/waybar/style.css and to
-# the gtkgreet stylesheet this file replaces:
+# Greyscale, dark to light. The same values dotfiles/waybar/style.css used before
+# the bar became noctalia's, and the same the shell's palette JSON carries now:
 #
 #   #1a1a1a  window background -- the same surface as the bar
 #   #242424  entry fill -- the desktop grey
