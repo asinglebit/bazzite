@@ -1,0 +1,41 @@
+# The values GTK actually uses, as image defaults.
+#
+# dotfiles/gtk-3.0/settings.ini names the theme, the icon theme, the cursor
+# theme and the UI font, and on Wayland GTK ignores all four. It takes them from
+# the XDG desktop portal instead, which answers out of
+# org.gnome.desktop.interface in dconf, and the portal wins over settings.ini
+# for every key it serves -- silently, with nothing logged. Measured before this
+# file existed: settings.ini asked for adw-gtk3-dark, Papirus-Dark, Adwaita
+# cursors and Inter; GTK reported Adwaita, breeze-dark, breeze_cursors and Noto
+# Sans. Only gtk-xft-dpi and gtk-application-prefer-dark-theme got through,
+# because those are the two keys the portal does not answer.
+#
+# So the settings.ini values were documentation rather than configuration, and
+# these are the configuration. They live in the image for the reason
+# 20-appearance.conf gives for everything else at this level: the desktop must
+# come up correct before any dotfiles repo is cloned or linked.
+#
+# This sets the DEFAULT. A key a user has explicitly written still wins, which
+# is exactly how the Breeze and Noto values above survived Plasma's removal --
+# kde-gtk-config wrote them into dconf, where 30-kde-remove.sh could not follow.
+# `dconf reset` on those keys is what hands control back to this file;
+# verify.sh reports each one that is still overridden and prints the line.
+#
+# color-scheme is here for a second reason. gtk-4.0/settings.ini calls it the
+# single signal libadwaita, Qt (via QT_QPA_PLATFORMTHEME=xdgdesktopportal in
+# sway/environment), Firefox, Chromium and Electron all follow, and notes that
+# it "lives in dconf, not in this repo". Now it does.
+
+[org.gnome.desktop.interface]
+gtk-theme='adw-gtk3-dark'
+icon-theme='Papirus-Dark'
+cursor-theme='Adwaita'
+color-scheme='prefer-dark'
+
+# Inter for proportional text, Hack Nerd Font Mono for fixed -- the same split
+# dotfiles/fontconfig/fonts.conf makes, and the same monospace face waybar,
+# ghostty, rofi and hyprlock name. The values replaced were Noto Sans and Fira
+# Code, neither of which was chosen by anything in this repo.
+font-name='Inter 10'
+document-font-name='Inter 10'
+monospace-font-name='Hack Nerd Font Mono 10'

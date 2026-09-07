@@ -141,6 +141,44 @@ test -d /usr/share/themes/adw-gtk3-dark
 test -d /usr/share/icons/Papirus-Dark
 fc-list -q 'Inter'
 
+# --- and the file that actually selects them ---------------------------------
+#
+# Installing the theme is not choosing it. On Wayland GTK does not read
+# gtk-theme-name, gtk-icon-theme-name, gtk-cursor-theme-name or gtk-font-name
+# from gtk-3.0/settings.ini at all: it asks the XDG desktop portal, which
+# answers out of org.gnome.desktop.interface in dconf, and the portal wins for
+# every key it serves. Measured before this override existed, settings.ini
+# asked for adw-gtk3-dark / Papirus-Dark / Adwaita / Inter and GTK reported
+# Adwaita / breeze-dark / breeze_cursors / Noto Sans -- the Plasma-era values
+# kde-gtk-config wrote into dconf, where 30-kde-remove.sh cannot follow.
+#
+# So the selection belongs in the image, like everything else the desktop has to
+# have before a dotfiles repo exists. See the file itself for the rest.
+install -Dpm0644 "${CTX}/system_files/usr/share/glib-2.0/schemas/90-bazzite-sway.gschema.override" \
+                 /usr/share/glib-2.0/schemas/90-bazzite-sway.gschema.override
+glib-compile-schemas /usr/share/glib-2.0/schemas/
+
+# Read the result back rather than trusting the write. glib-compile-schemas
+# WARNS about an override naming a schema or key that does not exist and still
+# exits 0, so a typo there is not a build failure -- it is a desktop that comes
+# up in stock Adwaita with nothing to show why. The memory backend is what makes
+# this readable during a build: it returns the compiled default and needs no
+# dconf daemon.
+while read -r key want; do
+    got="$(GSETTINGS_BACKEND=memory gsettings get org.gnome.desktop.interface "$key" | tr -d "'")"
+    [[ "${got}" == "${want}" ]] || {
+        echo "gschema override did not take: ${key} is ${got}, wanted ${want}" >&2
+        exit 1
+    }
+done <<'KEYS'
+gtk-theme adw-gtk3-dark
+icon-theme Papirus-Dark
+cursor-theme Adwaita
+color-scheme prefer-dark
+font-name Inter 10
+monospace-font-name Hack Nerd Font Mono 10
+KEYS
+
 # Black folder icons.
 #
 # papirus-folders is not packaged in any repo this image trusts, so it is

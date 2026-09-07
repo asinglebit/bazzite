@@ -408,18 +408,33 @@ done
 #
 # The three non-default values here are Plasma-era leftovers from kde-gtk-config,
 # which wrote into dconf where 30-kde-remove.sh could not follow.
+#
+# Three states, not two. The effective value is what GTK uses, but WHERE it
+# comes from decides whether anything is left to clean up:
+#
+#   effective wrong                  FAIL. The desktop is not themed.
+#   effective right, written in dconf WARN. Correct, but shadowing the image
+#                                    default with a copy of it -- `dconf reset`
+#                                    hands the key back to the override and is
+#                                    the state to end at.
+#   effective right, dconf empty     PASS. Coming from the image.
 while read -r key want; do
     have=$(gsettings get org.gnome.desktop.interface "$key" 2>/dev/null | tr -d "'")
-    if [[ "$have" == "$want" ]]; then
-        ok "portal $key = $have"
+    user=$(dconf read "/org/gnome/desktop/interface/$key" 2>/dev/null | tr -d "'")
+    if [[ "$have" != "$want" ]]; then
+        no "portal $key = ${have:-unset}, wanted '$want' and the portal LOSES to nothing -- gsettings set org.gnome.desktop.interface $key '$want'"
+    elif [[ -n "$user" ]]; then
+        meh "portal $key = $have, but from dconf rather than the image override -- dconf reset /org/gnome/desktop/interface/$key"
     else
-        no "portal $key = ${have:-unset}, settings.ini asks for '$want' and LOSES -- gsettings set org.gnome.desktop.interface $key '$want'"
+        ok "portal $key = $have (from the image override)"
     fi
 done <<'KEYS'
 gtk-theme adw-gtk3-dark
 icon-theme Papirus-Dark
 cursor-theme Adwaita
+color-scheme prefer-dark
 font-name Inter 10
+monospace-font-name Hack Nerd Font Mono 10
 KEYS
 
 # The tripwire under dotfiles/gtk-4.0/gtk.css. libadwaita deprecated
