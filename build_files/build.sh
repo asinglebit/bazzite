@@ -32,6 +32,12 @@ fi
 
 "${CTX}/build_files/35-devel-install.sh"
 "${CTX}/build_files/40-branding.sh"
+
+# After 40, because the patch's reasoning depends on what branding does: that
+# file keeps `base-image-name` as "kinoite", which decides which side of the
+# repaired `if` runs at login. Before 50 for no reason beyond signing being last.
+"${CTX}/build_files/45-bazzite-user-setup.sh"
+
 "${CTX}/build_files/50-signing.sh"
 
 # The package cache lives on a --mount=type=cache, so this only clears metadata
