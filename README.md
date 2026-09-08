@@ -1,4 +1,6 @@
-# bazzite-sway
+# bazzite noctalia swayfx
+
+<img width="1536" height="864" alt="image (1)" src="https://github.com/user-attachments/assets/ddd9ff47-8579-4152-9553-3b005620f3a0" />
 
 A [Bazzite](https://bazzite.gg)-derived bootc image running [SwayFX][swayfx] — a fork of
 [Sway][sway] with blur, rounded corners and shadows — instead of KDE Plasma, with Bazzite's gaming
