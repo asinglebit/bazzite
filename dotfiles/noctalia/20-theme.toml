@@ -1,47 +1,31 @@
-# The palette, and the two things it is deliberately not.
+# palettes/bazzite-grey.json is a transliteration of the sixteen Material roles
+# in the greeter's greeter.toml. That file carries the rationale and the
+# measurements for every value -- read it, not this one.
 #
-# source = "custom" names palettes/bazzite-grey.json in this directory, which is
-# a transliteration of the sixteen Material roles in
-# system_files/usr/share/factory/var/lib/noctalia-greeter/greeter.toml -- the
-# login screen's palette, which carries the rationale for every one of those
-# values and the measurements behind them. Read that file, not this one, to
-# find out why `primary` is the bright grey and why `error` is white.
+# The two copies must stay equal or the handoff at login is visible, and
+# verify.sh asserts it. `noctalia msg greeter-sync` is deliberately NOT used:
+# tmpfiles.d recreates the greeter's /var copy from /usr/share/factory on every
+# boot, so a sync write is reverted at the next reboot.
 #
-# The two files have to stay equal or the handoff at login is visible, and
-# verify.sh asserts it. What upstream offers for this is `noctalia msg
-# greeter-sync`, and it is NOT used: tmpfiles.d recreates the greeter's /var
-# copy from /usr/share/factory on every boot, so a sync write is reverted at the
-# next reboot. A static palette needs no sync.
-#
-# NOT "wallpaper": generating the palette from the wallpaper is what noctalia is
-# designed around, and it is the one thing a deliberately greyscale desktop
-# cannot survive -- the same reason the greeter hides its scheme selector.
+# Not "wallpaper": a generated palette is the one thing a deliberately greyscale
+# desktop cannot survive.
 [theme]
 source         = "custom"
 custom_palette = "bazzite-grey"
 mode           = "dark"
-# "follow" would let the shell track a light/dark preference this desktop does
-# not have. There is one mode here.
 shell_mode     = "dark"
 
-# NO APP TEMPLATES, and this is a trap rather than a preference.
+# TEMPLATES OFF -- a trap, not a preference. They do not emit a file and stop.
 #
-# The shipped templates do not emit a file and stop. templates/gtk/apply.sh
-# APPENDS `@import url("noctalia.css");` to ~/.config/gtk-3.0/gtk.css, and when
-# that path is a symlink it resolves it and writes through -- i.e. straight into
-# dotfiles/gtk-3.0/gtk.css in the git tree. It then runs `gsettings set
-# org.gnome.desktop.interface gtk-theme`, which lands in dconf and overrides
-# system_files/usr/share/glib-2.0/schemas/90-bazzite-sway.gschema.override, the
-# exact channel that file exists to own.
+# templates/gtk/apply.sh appends an @import to ~/.config/gtk-3.0/gtk.css and
+# resolves the symlink, writing straight into this git tree; it then sets
+# org.gnome.desktop.interface gtk-theme in dconf, overriding the gschema file
+# that exists to own exactly that.
 #
 # templates/sway/apply.sh is worse: it appends an include to
-# ~/.config/sway/config, and CREATES that file if absent. sway(1) reads
-# $XDG_CONFIG_HOME/sway/config at position 2 and /etc/sway/config at position 5,
-# first match wins -- so on this image, which has no user sway config, that
-# template would produce a session with no $term, no window bindings and no
-# layered-include. A dead desktop from a colour template.
-#
-# The hand-written GTK CSS and the gschema override stay the theming channel.
+# ~/.config/sway/config and CREATES that file if missing. sway reads it before
+# /etc/sway/config and stops at the first match, so on this image that yields a
+# session with no $term, no bindings and no layered-include.
 [theme.templates]
 enable_builtin_templates   = false
 enable_community_templates = false

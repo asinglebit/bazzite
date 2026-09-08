@@ -1,14 +1,8 @@
 --!nonstrict
--- Failed systemd units, the successor to waybar's `systemd-failed-units`.
+-- Failed systemd units, both managers. Invisible until something breaks.
 --
--- verify.sh has a "Failed units" section; this is that check, permanently, on
--- the bar. Invisible until something breaks, so it costs nothing at rest --
--- which is also its limit: the one unit whose failure this cannot report is
--- noctalia.service, because there is no bar left to draw it on. That is what
--- `systemctl --user is-active noctalia` in verify.sh is for.
---
--- Both managers are counted. The user manager is where every session service
--- lives now, including the shell itself.
+-- Its limit: the one unit whose failure this cannot report is noctalia.service,
+-- because there is no bar left to draw it on. That is what verify.sh is for.
 
 local system, user = 0, 0
 

@@ -1,148 +1,74 @@
 # The login screen, painted from the desktop's palette.
 #
-# WHERE THIS FILE LIVES AND WHY. noctalia-greeter reads its config from
-# /var/lib/noctalia-greeter/greeter.toml and nowhere else -- there is no /etc
-# path in its search order, and NOCTALIA_GREETER_STATE_DIR is documented as
-# bootstrap-only. But /var content shipped in a bootc image is applied on
-# INITIAL provisioning only, so a file placed there in the image would silently
-# not exist on an already-installed system. So it ships HERE, under
-# /usr/share/factory, which is where a tmpfiles.d `C` rule copies from when its
-# source argument is omitted -- see /usr/lib/tmpfiles.d/bazzite-sway.conf, which
-# recreates the tree on every boot for exactly this reason.
+# SHIPS UNDER /usr/share/factory, not /var/lib/noctalia-greeter where the
+# greeter actually reads it: /var content in a bootc image is applied on INITIAL
+# provisioning only. /usr/lib/tmpfiles.d/bazzite-sway.conf copies it into place
+# on every boot -- see that file for why the rule is `r` + `C` and not `C+`.
 #
-# The rule there is `r` followed by `C`, so an edit to this file lands on the
-# next boot after an upgrade. It is NOT `C+`: the + on a C line only lets the
-# copy descend into a non-empty destination DIRECTORY, and over an existing
-# destination FILE both C and C+ skip silently -- which meant this file used to
-# land exactly once, on initial provisioning, and never again. The greeter's own
-# mutable state -- sync.toml, which remembers the last user and session -- is
-# NOT touched by either line.
+# THE GREETER REWRITES THE /var COPY when it starts, into its own canonical form
+# with these comments stripped and keys sorted. Do not read a shorter file there
+# as the copy having failed -- check the values, which is what verify.sh does.
 #
-# AND THE GREETER REWRITES THIS FILE when it starts, so the copy in /var is
-# never identical to the one you are reading. It emits its own canonical form:
-# these comments stripped, keys sorted, the palette indented under
-# [appearance.palette], and `scheme` below dropped because that one is read from
-# sync.toml. The values survive. Do not read a shorter file in /var as the copy
-# having failed -- check the values, which is what verify.sh does.
-#
-# greeter.toml wins over anything in sync.toml, which is the whole reason to use
-# it: the login screen's appearance is a property of the image, not something
-# that drifts with what was clicked last.
+# greeter.toml wins over sync.toml, which is the whole point: the login screen's
+# appearance is a property of the image, not something that drifts with what was
+# clicked last.
 
 [appearance]
-# "Synced" is the appearance path the palette below feeds, and upstream documents
-# `palette` as taking precedence over Sync, so the effect is to pin the look to
-# the values here. If a future version ignores the palette in this mode, the
-# fallback is to name a built-in scheme instead and re-check it in
-# `just greeter-preview`.
+# `palette` takes precedence over Sync, so this pins the look to the values
+# below. `noctalia msg greeter-sync` would write this file from the desktop's
+# live palette and is deliberately unused: tmpfiles recreates the /var copy from
+# the image on every boot, so a sync write would not survive a reboot.
 #
-# THERE IS NOW A NOCTALIA SHELL ON THIS IMAGE, and it is deliberately not synced
-# from. `noctalia msg greeter-sync` exists and would write this file from the
-# desktop's live palette; it is not used, and the reason is mechanical rather
-# than aesthetic. /usr/lib/tmpfiles.d/bazzite-sway.conf recreates the /var copy
-# of this file from /usr/share/factory on EVERY boot (the `r` then `C` pair), so
-# a sync write survives until the next reboot and no longer. A static palette
-# needs no sync.
-#
-# What that costs is that the sixteen roles below exist twice -- here, and in
-# dotfiles/noctalia/palettes/bazzite-grey.json, which is the shell's copy in
-# noctalia 5's JSON form (`surface` becomes `mSurface`, and so on). verify.sh
-# asserts the two agree, because nothing at runtime will notice if they drift:
-# the login screen just stops matching the desktop, which reads as a rendering
-# difference rather than a bug.
-#
-# Note the two products are unrelated apart from this. The greeter is
-# noctalia-greeter 1.x from Terra; the shell is noctalia 5.x from Fedora. Their
-# file trees are disjoint and 18-noctalia-shell.sh asserts it.
+# The cost is that the sixteen roles exist twice -- here and in
+# dotfiles/noctalia/palettes/bazzite-grey.json, the shell's JSON form. verify.sh
+# asserts they agree, because nothing at runtime notices if they drift: the login
+# screen just stops matching the desktop.
 scheme     = "Synced"
 theme_mode = "dark"
 
-# Inter, as everywhere else in this desktop.
-#
-# THE ONE FIDELITY LOSS versus the gtkgreet stylesheet this replaces: there is a
-# single font_family, so Inter-for-labels / Hack Nerd Font Mono-for-the-password
-# -field cannot be reproduced -- that split existed so the login screen agreed
-# with the terminal about what a character looks like. password_style below makes
-# counting characters pointless anyway.
 font_family = "Inter"
 
-# Corner radius. The desktop has exactly one, 9px -- sway's `corner_radius 9`,
-# applied to the shell's panels by namespace in
-# dotfiles/sway/config.d/25-effects.conf. This is a SCALE over Noctalia's own
-# radii rather than a pixel value, so it is set by eye in the nested preview
-# rather than calculated.
-#
-# It stays 1.0 while the shell's went to 0.7, and the two are not out of step.
-# The shell scaled its inner radii DOWN because SwayFX rounds the surface holding
-# them to 9px; nothing rounds this greeter's surfaces -- its compositor is
-# noctalia-greeter-compositor and there is no layer_effects for it -- so there is
-# no outer curve here for an inner one to fight with.
+# A SCALE over Noctalia's own radii, not a pixel value. It stays 1.0 while the
+# shell's went to 0.7, and the two are not out of step: the shell scaled its
+# inner radii down because SwayFX rounds the surface holding them, and nothing
+# rounds this greeter's surfaces -- its compositor has no layer_effects at all.
 corner_radius_scale = 1.0
 
-# The Noctalia brand mark, and the scheme picker. Both off.
-#
-# hide_logo is taste. scheme_selector_position is not: leaving it visible puts a
-# control on the login screen that swaps in one of Noctalia's colour schemes,
-# which is the one thing a greyscale desktop cannot survive.
 hide_logo                = true
+# NOT taste. Left visible this puts a control on the login screen that swaps in
+# one of Noctalia's colour schemes, which is the one thing a greyscale desktop
+# cannot survive.
 scheme_selector_position = "hidden"
 power_buttons_position   = "bottom-right"
 
-# The password mask. "random" varies the glyph count as you type, so the field
-# leaks neither the characters nor the LENGTH -- the same concern that made
-# dotfiles/hypr/hyprlock.conf turn hide_input off, arrived at from the other
-# side. The cost hyprlock had to weigh (no way to tell a dead Bluetooth keyboard
-# from a silent one) does not apply here, because something still moves.
+# "random" varies the glyph count as you type, so the field leaks neither the
+# characters nor the LENGTH.
 password_style = "random"
 
-# Greyscale, dark to light. The same values dotfiles/waybar/style.css used before
-# the bar became noctalia's, and the same the shell's palette JSON carries now:
+# Greyscale, dark to light:
 #
-#   #1a1a1a  window background -- the same surface as the bar
-#   #242424  entry fill -- the desktop grey
-#   #2e2e2e  hairline
-#   #5a5a5a  dim
-#   #9a9a9a  base   - labels
-#   #d8d8d8  bright - typed text, focus
-#   #ffffff  alert  - a failed login. Greyscale has no red, so this signals with
-#            maximum brightness, exactly as swaylock and hyprlock do.
-#
-# Noctalia names its colours by Material role rather than by surface, so the
-# mapping is stated per key. Every `on_*` is the text drawn ON that role.
+#   #1a1a1a  window background   #5a5a5a  dim
+#   #242424  entry fill          #9a9a9a  labels
+#   #2e2e2e  hairline            #d8d8d8  typed text, focus
+#                                #ffffff  a failed login -- greyscale has no
+#                                         red, so this signals with brightness
 #
 # TWO THINGS MEASURED FROM A RENDERED GREETER, so nobody re-derives them:
 #
-#  1. These values are SEEDS, not literals. The greeter tone-adjusts them, so
-#     what lands on screen is a few units off what is written here -- #1a1a1a
-#     drew as #1e1e1e, #242424 as #262626, #9a9a9a as #adadad, #2e2e2e as
-#     #2d2d2d. The shift is small and, more importantly, perfectly neutral
-#     (r=g=b in every sampled grey), so the login screen still reads as the
-#     desktop's greyscale. It is not pixel-identical to waybar and cannot be
-#     made so from here. Proof the palette is applied at all: with `surface`
-#     set to #ff0000 the window renders #ca0b0b.
+#  1. THESE ARE SEEDS, NOT LITERALS. The greeter tone-adjusts them, so what
+#     lands on screen is a few units off -- #1a1a1a drew as #1e1e1e, #9a9a9a as
+#     #adadad. The shift is perfectly neutral (r=g=b in every sampled grey), so
+#     it still reads as the desktop's greyscale, but it is not pixel-identical
+#     to the shell and cannot be made so from here.
 #
-#  2. TWO THINGS ARE NOT GREY, and neither is reachable from here. Measured off
-#     rendered greeters (nested, `just greeter-preview`, so the hexes below are
-#     the un-tone-mapped ones the software renderer produces): of 675004 pixels
-#     in the greeter window, 1329 are non-neutral. 0.20%.
-#
-#     The text CARET, 16 px, is Noctalia's own accent -- #fff59b raw, #cac37f
-#     once the GLES2 path tone-maps it -- and follows none of the sixteen roles
-#     below. It was identical across a palette set to red, one with `primary`
-#     set to green, and one collapsed to mid grey. There is no caret or accent
-#     key in the binary's string table, so it is hardcoded.
-#
-#     The SUBMIT BUTTON, the arrow beside the password field, is 1173 px of that
-#     same accent BLENDED with `primary`. It does track `primary`: #d8d8d8 draws
-#     #f1ebb1, #00ff00 draws #a7f866, #2e2e2e draws #959063. But all three carry
-#     hue, because blending cannot remove what the accent contributes -- and
-#     every one of the sixteen roles here is already r=g=b, so there is no
-#     neutral input left to give it. The only lever is darkening `primary`,
-#     which moves the button's r/g/b span from 64 to 50 and spends the one
-#     filled bright block this palette deliberately creates. Not worth 14 units.
-#
-#     So: not fixable from configuration, either of them. Do not spend an
-#     evening on it twice.
+#  2. THE CARET AND THE SUBMIT BUTTON ARE NOT GREY, and neither is reachable
+#     from this file -- 0.20% of the window's pixels. The caret is Noctalia's own
+#     hardcoded accent and tracks none of the sixteen roles. The button blends
+#     that accent with `primary`, so it carries hue whatever `primary` is: every
+#     role here is already r=g=b, leaving no neutral input to give it. The only
+#     lever is darkening `primary`, which spends the one filled bright block
+#     this palette deliberately creates. Not fixable from configuration -- do
+#     not spend an evening on it twice.
 [appearance.palette]
 surface            = "#1a1a1a"
 on_surface         = "#d8d8d8"
@@ -150,12 +76,11 @@ surface_variant    = "#242424"
 on_surface_variant = "#9a9a9a"
 outline            = "#2e2e2e"
 
-# Flat. The shadow collapses into the surface it would fall on, which is how the
-# rest of this desktop draws: no window borders, no elevation.
+# Flat: the shadow collapses into the surface it would fall on, which is how the
+# rest of this desktop draws.
 shadow             = "#1a1a1a"
 
-# primary is the one filled block on screen -- the focused control. Inverted,
-# the same split waybar makes between a focused workspace and a hovered one.
+# primary is the one filled block on screen -- the focused control, inverted.
 primary            = "#d8d8d8"
 on_primary         = "#1a1a1a"
 secondary          = "#9a9a9a"
@@ -163,28 +88,22 @@ on_secondary       = "#1a1a1a"
 tertiary           = "#5a5a5a"
 on_tertiary        = "#d8d8d8"
 
-# A rejected password. Brightness, not hue.
 error              = "#ffffff"
 on_error           = "#1a1a1a"
 
-# Flat until hovered: the only filled thing is what is under the pointer.
 hover              = "#2e2e2e"
 on_hover           = "#d8d8d8"
 
-# A flat fill, and NO `path`.
-#
-# The desktop's wallpaper is $HOME/.config/sway/wallpaper.png, which is itself a
-# dotfile -- pointing at it from an image-level config would make the login
-# screen depend on `just link-dotfiles` having run. Same reasoning, same
-# conclusion, as the /etc/xdg/hypr/hyprlock.conf fallback. #1a1a1a is also what
-# the greeter's own surface is, so there is nothing to see behind it.
+# A flat fill, and NO `path`: the desktop's wallpaper is a dotfile, so pointing
+# at it from an image-level config would make the login screen depend on
+# `just link-dotfiles` having run.
 [appearance.wallpaper]
 fill_color = "#1a1a1a"
 
-# Password entry has to match the console keymap (vconsole KEYMAP=us). This is
-# the successor to `input type:keyboard xkb_layout "us"` in the sway greeter
-# config; stated so that changing the layout is one edit here rather than a
-# discovery at the password prompt.
+# Password entry has to match the console keymap (vconsole KEYMAP=us), so this
+# stays us-only even though the session has `us,ru` from
+# dotfiles/sway/config.d/30-input.conf. Changing it is one edit here rather than
+# a discovery at the password prompt.
 [keyboard]
 layout  = "us"
 numlock = true
@@ -192,18 +111,13 @@ numlock = true
 [auth]
 allow_empty_password = false
 
-# NO [output] BLOCK, DELIBERATELY.
-#
-# The knobs exist -- `scale`, `scales = "DP-1:1; DP-2:1.25"`, `layout`,
-# `transforms` -- and using them would defeat the point of this greeter. The
-# reason the login screen stopped being tuigreet on a VT is that a console cell
-# is a fixed pixel bitmap, so its physical size tracked whichever mode the DRM
-# fbdev helper picked and the panel's PPI: the same 8x16 cell measured 7.36mm on
-# the 81 PPI HP and 3.69mm on the 160 PPI Dell. Per-connector constants here
-# would be that same class of mistake written down by hand, and wrong the first
-# time a monitor is swapped.
+# NO [output] BLOCK, DELIBERATELY. The knobs exist -- `scale`, `scales`,
+# `layout`, `transforms` -- and using them would defeat the point of this
+# greeter. The login screen stopped being tuigreet on a VT because a console
+# cell is a fixed pixel bitmap, so the same 8x16 cell measured 7.36mm on the
+# 81 PPI HP and 3.69mm on the 160 PPI Dell. Per-connector constants here would
+# be that same mistake written by hand, and wrong the first time a monitor moves.
 #
 # Left alone, the greeter derives each output's scale from its geometry and
-# renders through wp_fractional_scale_v1 + wp_viewporter, capped at 2.0. That is
-# the property being bought. Set something here only to correct it, never to
-# establish it.
+# renders through wp_fractional_scale_v1 + wp_viewporter, capped at 2.0. Set
+# something here only to CORRECT that, never to establish it.

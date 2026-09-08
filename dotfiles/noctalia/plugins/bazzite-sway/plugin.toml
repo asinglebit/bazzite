@@ -1,13 +1,7 @@
-# The four things noctalia has no widget for.
+# The four things noctalia has no built-in widget for. If upstream grows any of
+# them, delete the entry rather than keep it for symmetry.
 #
-# Each of these existed on the waybar bar this replaced, and each is here
-# because there is no built-in equivalent -- not because a plugin was wanted.
-# If upstream grows any of them, the corresponding entry should be deleted
-# rather than kept for symmetry.
-#
-# `id` is author/plugin, and a widget is addressed as <id>:<widget id> -- which
-# is what dotfiles/noctalia/30-bar.toml puts in its `end` list. plugin_api 9 is
-# the level the reference plugin targets; this shell supports 3 through 30.
+# A widget is addressed as <id>:<widget id>, which is what 30-bar.toml lists.
 id          = "asinglebit/bazzite-sway"
 name        = "bazzite-sway"
 version     = "1.0.0"
@@ -19,47 +13,32 @@ tags        = [ "sway", "system" ]
 icon        = "cpu"
 dependencies = []
 
-# Hardware: cpu load, memory and package temperature as ONE glyph, with the
-# figures in the tooltip and the alert in the glyph's colour.
+# cpu, memory and package temperature as one glyph; figures in the tooltip, the
+# alert in the glyph's colour. The sensor is found BY NAME, not by index.
 #
-# This is the port of dotfiles/waybar/stats.sh, and the two things that file
-# argued for are the two things to preserve: the sensor is found BY NAME rather
-# than by index, and the thresholds are what put the reading on the bar at all.
-# A reading you have to hover to see is not an alarm.
-#
-# The thresholds are constants in hardware.luau rather than [[widget.setting]]
-# entries, deliberately. A settings block would put them in the GUI, but the
-# manifest's setting schema is the one construct here that could not be checked
-# offline -- upstream's reference plugin declares `label_key` against a
-# translations file, and a wrong key risks the whole plugin failing to load,
-# which would take all four widgets with it rather than just the labels. Not a
-# trade worth making for six numbers that have not changed since stats.sh.
-#
-# They match [system.monitor] in dotfiles/noctalia/50-services.toml, which is
-# the same intent for a different consumer: that section is what the control
-# centre colours against.
+# Thresholds are constants in hardware.luau rather than [[widget.setting]]
+# entries: the manifest's setting schema is the one construct here that cannot
+# be checked offline, and a bad key risks the whole plugin failing to load,
+# taking all four widgets with it. They mirror [system.monitor] in
+# 50-services.toml, which is what the control centre colours against.
 [[widget]]
 id    = "hardware"
 entry = "hardware.luau"
 
-
-# Sway's binding-mode indicator. waybar had `sway/mode`; noctalia's
-# keyboard_layout widget is a different thing entirely. Hidden in the default
-# mode, so it costs nothing at rest.
+# waybar's `sway/mode`. Hidden in the default mode, so it costs nothing at rest.
 [[widget]]
 id    = "swaymode"
 entry = "swaymode.luau"
 
-# The scratchpad count. 20-appearance.conf sets `default_border none`, so a
-# window sent to the scratchpad leaves NO trace on screen at all -- this count
-# is the only feedback that $mod+Shift+minus did anything. Hidden when empty.
+# 20-appearance.conf sets `default_border none`, so a window sent to the
+# scratchpad leaves no trace on screen -- this count is the only feedback that
+# the binding did anything. Hidden when empty.
 [[widget]]
 id    = "scratchpad"
 entry = "scratchpad.luau"
 
-# Failed systemd units. verify.sh has a "Failed units" section; this is that
-# check, permanently, on the bar. Invisible until something breaks -- including
-# noctalia.service itself, though by then there is no bar to show it.
+# Invisible until a unit fails -- including noctalia.service, though by then
+# there is no bar to show it.
 [[widget]]
 id    = "failedunits"
 entry = "failedunits.luau"

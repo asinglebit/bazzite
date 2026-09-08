@@ -1,45 +1,33 @@
 #!/usr/bin/sh
 # The greeter's environment. What start-sway is to the session, this is to the
-# login screen.
-#
-# noctalia-greeter does not borrow this machine's compositor the way gtkgreet
-# did -- it ships its own, /usr/bin/noctalia-greeter-compositor, a wlroots 0.20
-# instance that greetd starts directly. That instance therefore inherits NONE of
-# /etc/sway/environment, where every GPU decision this image has ever made is
-# written down. This file is the one place to put the relevant ones back.
+# login screen: the bundled compositor is a separate wlroots instance started by
+# greetd, so it inherits NONE of /etc/sway/environment.
 #
 # WHY A WRAPPER AND NOT A DROP-IN. greetd builds the session's environment
-# itself rather than passing its own through, so Environment= in a
-# greetd.service drop-in does not reach the greeter. Upstream's PACKAGING.md is
-# explicit that env assignments inside greetd's TOML do not work either --
-# `FOO=1 /path/to/thing` is not valid TOML there. A wrapper on the `command =`
-# line is what is left, and it keeps the same shape the session already has:
-# greetd -> this -> noctalia-greeter-session -> compositor -> greeter.
+# itself, so Environment= in a greetd.service drop-in does not reach the
+# greeter, and env assignments inside greetd's TOML are not valid there either.
+# A wrapper on the `command =` line is what is left.
 #
 # ASSIGNED, NOT FORCED. `:=` leaves an inherited value alone, which is what lets
 # `just greeter-preview` run this exact file nested inside a live session with
-# WLR_BACKENDS=wayland rather than taking over a display. Same style
-# noctalia-greeter-session itself uses for ${WLR_LOG:-error}.
+# WLR_BACKENDS=wayland rather than taking over a display.
 
-# GLES2 rather than whatever wlroots 0.20 picks on its own. This is NOT the
-# reason the session sets the same variable: there it is a SwayFX constraint
-# (fx_renderer has no Vulkan path). Here it is about the GPU -- gles2 is the only
-# renderer this image has ever proven on nvidia-open, and upstream carries a
-# merged fallback for NVIDIA swapchain errors whose symptom is nothing being
-# displayed at all (noctalia-greeter PR #28). Pin the proven one.
+# NOT for the session's reason: there WLR_RENDERER=gles2 is a SwayFX constraint.
+# Here it is about the GPU -- gles2 is the only renderer this image has proven on
+# nvidia-open, and upstream's fallback for NVIDIA swapchain errors has "nothing
+# is displayed" as its symptom (noctalia-greeter PR #28).
 : "${WLR_RENDERER:=gles2}"
 export WLR_RENDERER
 
 # NOT SET, deliberately:
 #
-#   --unsupported-gpu  sway's own guard against a driver named nvidia-drm, not a
-#                      wlroots one. The bundled compositor has no such check, so
-#                      there is nothing to escape here.
+#   --unsupported-gpu  sway's own guard, not a wlroots one. The bundled
+#                      compositor has no such check.
 #   -D noscanout       also sway's. The wlroots-level equivalent, if the login
 #                      screen shows black frames or tearing, is
 #                      WLR_DRM_NO_MODIFIERS=1 -- it belongs here, not in
 #                      /etc/sway/environment, which this process never reads.
-#   WLR_BACKENDS       left to autodetect, so this file works both on VT 1 (DRM)
-#                      and nested under a session.
+#   WLR_BACKENDS       left to autodetect, so this works both on VT 1 (DRM) and
+#                      nested under a session.
 
 exec /usr/bin/noctalia-greeter-session "$@"

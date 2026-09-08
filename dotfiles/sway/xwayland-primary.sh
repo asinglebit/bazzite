@@ -1,14 +1,12 @@
 #!/bin/sh
-# Mark the main monitor as the Xwayland RandR "primary" output.
+# Mark the main monitor as the Xwayland RandR primary output.
 #
-# Sway/wlroots never sets a RandR primary -- with a stock config, `xrandr` under
-# Xwayland reports neither monitor as primary. Some X11 clients (game launchers,
-# Steam, older toolkits) place their windows on, or read the geometry of, the
-# primary output, so leaving it unset lands them on whichever screen happens to
-# come first. Sway has no config directive for this, hence the exec_always.
+# wlroots never sets one, so X11 clients that place windows on the primary
+# output (game launchers, Steam, older toolkits) land wherever enumeration puts
+# them. Sway has no directive for this, hence exec_always.
 #
-# The connector name is looked up from the stable EDID identifier at runtime, so
-# this keeps working if the monitors move to different ports.
+# The connector is looked up from the EDID identifier at runtime, so this
+# survives the monitors moving ports.
 
 set -eu
 

@@ -2,25 +2,19 @@
 Description=Noctalia (bar, notifications, launcher, lock screen, OSD, polkit agent)
 Documentation=https://docs.noctalia.dev/noctalia/
 # This one unit is the whole shell. If it is not running there is no bar, no
-# notifications, no launcher, no volume or brightness OSD, no clipboard history,
-# no screenshots, no lock screen, no idle timeout and no polkit prompt -- so
-# pkexec, ujust and bazzite-user-setup block forever, exactly as they did with no
-# authentication agent at all. That breadth is the cost of one shell instead of
-# nine, and it is why verify.sh checks `is-active` on this unit first.
+# notifications, no launcher, no OSD, no lock screen and no polkit prompt -- so
+# pkexec, ujust and bazzite-user-setup block forever. That is why verify.sh
+# checks `is-active` on this unit first.
 PartOf=graphical-session.target
 After=graphical-session.target
 # Nothing here can start without a compositor to bind layer surfaces to.
 ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
-# Type=simple with the BARE binary, deliberately not `noctalia --daemon`.
-#
-# --daemon exists for compositors whose autostart expects the command to return
-# once the shell is up, which is what /usr/share/applications/dev.noctalia.
-# Noctalia.desktop uses. Under systemd it is the wrong shape twice over: the
-# process systemd supervises would exit immediately, so Restart=on-failure would
-# watch a corpse, and the real shell would run unsupervised outside the unit's
-# cgroup. Started this way `noctalia` stays in the foreground and systemd owns it.
+# The BARE binary, deliberately not `noctalia --daemon`. --daemon returns once
+# the shell is up, which under systemd is wrong twice over: the supervised
+# process would exit immediately so Restart=on-failure would watch a corpse, and
+# the real shell would run outside the unit's cgroup.
 Type=simple
 ExecStart=/usr/bin/noctalia
 Restart=on-failure

@@ -1,15 +1,6 @@
-# The bar.
-#
-# This is a port of dotfiles/waybar/config.jsonc, and the layout argument it
-# carried is worth restating because it decides everything below: the bar
-# REPORTS state and the control centre CHANGES it. That division is what lets
-# every widget on the right be a single glyph with no text beside it, and it is
-# why nearly all of them share one left-click target.
-#
-# What is genuinely new: the OSD. Volume, mic, brightness, DND and night light
-# now draw a transient indicator instead of a notification with an int:value
-# hint, which is what /usr/share/sway/config.d/60-bindings-volume.conf used to
-# do through swaync. See 10-shell.toml.
+# The bar REPORTS state; the control centre CHANGES it. That division is why
+# every widget on the right is a single glyph with no text beside it, and why
+# nearly all of them share one left-click target.
 
 [bar]
 order = [ "default" ]
@@ -18,10 +9,8 @@ order = [ "default" ]
     position = "top"
     layer    = "top"
 
-    # Full width, hard against the top edge, square. noctalia's defaults are a
-    # floating pill (radius 12, margin_ends 100); this desktop's bar has always
-    # spanned the screen, and dotfiles/sway/config.d/25-effects.conf gives its
-    # namespace `corner_radius 0` for the same reason.
+    # Full width, hard against the top edge, square. 25-effects.conf gives this
+    # bar's namespace corner_radius 0 for the same reason.
     radius               = 0
     radius_top_left      = 0
     radius_top_right     = 0
@@ -33,73 +22,40 @@ order = [ "default" ]
     concave_edge_corners = false
     reserve_space        = true
 
-    # 30 -> 24 -> 22 was waybar's progression, and the binding floor there was
-    # the 16px tray icon rather than the text. noctalia draws capsules rather
-    # than bare glyphs, so it does not have the same floor -- this is the first
-    # number to check by eye, and the only reason it is not 22.
+    # thickness is the first number to check by eye.
     thickness      = 24
     padding        = 8
     widget_spacing = 4
     font_scale     = 1.01
     font_weight    = 500
 
-    # The bar overrides [shell] font_family from 10-shell.toml, and it is the
-    # only surface that does.
-    #
-    # Noto Sans Sinhala is a LATIN face for everything on this bar -- the Sinhala
-    # coverage the family is named for is not the part that renders here. It sets
-    # narrower and more even than the shell's Noto Sans CJK SC at the same size,
-    # which is what let font_scale come back up past 1.0 in a bar scaled to 0.75:
-    # the glyphs are bigger relative to the strip than they were at 0.95, and
-    # still fit.
+    # A LATIN face here -- the Sinhala coverage the family is named for is not
+    # the part that renders. It sets narrower and more even than the shell's
+    # Noto Sans CJK SC, which is what lets font_scale sit above 1.0 in a bar
+    # scaled to 0.75. It has no Cyrillic; layout names are Latin, so that only
+    # matters if custom_labels are ever set to Cyrillic strings.
     font_family    = "Noto Sans Sinhala"
 
-    # The alpha is not decoration. SwayFX blurs whatever is BEHIND a translucent
-    # surface, so an opaque bar does not disable the blur -- it hides it, and the
-    # compositor still pays for it. waybar drew at rgba(26,26,26,0.72) for this
-    # reason.
-    #
-    # 0.6 rather than that 0.72, and it followed the bar getting smaller: at 0.72
-    # a strip shrunk to scale 0.75 read as a solid band rather than a frosted
-    # one. There is less of it, so less of it can be opaque.
+    # Not decoration: SwayFX blurs what is BEHIND a translucent surface, so an
+    # opaque bar does not disable the blur, it hides it and still pays for it.
     background_opacity = 0.6
 
-    # SwayFX draws the ROUNDING for every layer surface this desktop has, keyed
-    # on namespace in 25-effects.conf -- and for this one it draws
-    # `corner_radius 0`, because a full-width bar at the top edge has nothing to
-    # round against.
-    #
-    # It does NOT draw the shadow. That was the old claim here and in
-    # 10-shell.toml, and sway-ipc disproves it: the bar's surface reports
-    # shadows: False, because `shadows enable` applies to views and a layer
-    # surface gets only what its own layer_effects line asks for. So these two
-    # are a choice rather than a duplicate avoided -- a bar flush against the
-    # screen edge has three sides a shadow cannot fall on, and the fourth is the
-    # one the blur already separates.
+    # A choice, not a duplicate avoided: SwayFX's `shadows enable` applies to
+    # views, and a layer surface gets only what its layer_effects line asks for.
     shadow          = false
     contact_shadow  = false
     border          = "outline"
     border_width    = 0.0
     hover_highlight = true
 
-    # NO [bar.default.monitor.*] TABLE, DELIBERATELY.
+    # NO [bar.default.monitor.*] TABLE, DELIBERATELY. noctalia keys per-monitor
+    # overrides by CONNECTOR name, and this desktop matches outputs by EDID
+    # precisely because connectors move. If the bar is wrong it is wrong on both
+    # monitors, and the fix is this `scale` or ui_scale in 10-shell.toml -- one
+    # number, not a table of connectors.
     #
-    # noctalia keys per-monitor overrides by CONNECTOR name. This desktop matches
-    # outputs by EDID identifier (10-outputs.conf) precisely because connectors
-    # move -- the Dell is HDMI-A-2 "today". Per-connector constants here would be
-    # the same class of mistake greeter.toml refuses at its own [output] block,
-    # with the console-cell measurement as the argument.
-    #
-    # Left alone, one bar spawns per output and takes its scale from sway's
-    # `output ... scale 2` through wp_fractional_scale_v1. If the bar is wrong,
-    # it will be wrong on BOTH monitors, and the fix is `scale` here or
-    # ui_scale in 10-shell.toml -- one number, not a table of connectors.
-    #
-    # And it was wrong. 0.75 here, against ui_scale 0.9 doing the same job for
-    # every other surface, and the two multiply: the bar's chrome lands near two
-    # thirds of noctalia's own sizing, which is what a capsule bar takes to sit
-    # in the 24px strip waybar occupied. Both numbers, not a connector between
-    # them.
+    # 0.75 multiplies with ui_scale 0.9, landing the chrome near two thirds of
+    # noctalia's own sizing, which is what fits the 24px strip.
     scale = 0.75
 
     start  = [ "workspaces" ]
@@ -118,28 +74,10 @@ order = [ "default" ]
         "clock",
     ]
 
-    # WHAT SITS OUTSIDE THE PILL, and why.
-    #
-    # screenshot, color_picker and keyboard_layout are the widgets on this bar
-    # that DO something rather than report something. So they go outside the
-    # capsule, next to the tray, with the reporting glyphs left as one
-    # uninterrupted run -- putting any of them inside would break
-    # capsule_group's contiguity as well as the argument.
-    #
-    # audio_visualizer leads the group instead, second only to privacy and well
-    # clear of the pill. It is the one thing here with no state to read -- the
-    # output meter drawn as motion -- so it wants the end of the row furthest from
-    # the glyphs that do, and the clock keeps the right edge it has always had.
-
-    # The status pill.
-    #
-    # waybar/style.css drew this by hand: a `group/status` box given one CSS id,
-    # rounded, lifted a shade off the bar so five bare glyphs read as one control
-    # surface rather than five characters adrift in the blur. noctalia has the
-    # concept, so the CSS is gone and the intent is a list.
-    #
-    # Four, still adjacent in `end` above. The capsule is drawn as one run,
-    # so anything inserted between two of these names splits the pill in half.
+    # screenshot, color_picker and keyboard_layout are the widgets that DO
+    # something rather than report something, so they sit outside the capsule
+    # next to the tray. The capsule is drawn as one run, so anything inserted
+    # between two of its names splits the pill in half.
     capsule_group     = [ "output_volume", "network", "bluetooth", "notifications" ]
     capsule           = true
     capsule_fill      = "surface_variant"
@@ -148,45 +86,21 @@ order = [ "default" ]
     capsule_radius    = 9.0
     capsule_thickness = 0.76
 
-# --- Widgets -----------------------------------------------------------------
+# A widget's NAME is its id and is what the bar lists; `type` is what it is.
 #
-# A widget's NAME is its id and is what the bar lists; `type` is what it is. So
-# two sysmon widgets can differ, and a name can be reused across bars.
+# Every widget defaults to middle = "settings-open-widget", so a middle-click
+# opens a settings page unless bound to something or to "none".
 #
-# Gestures live in [widget.<name>.actions] and there are nine of them, against
-# waybar's five. NOTE THE DEFAULT: every widget starts with
-# middle = "settings-open-widget", so a middle-click opens a settings page
-# unless it is bound to something or to "none". Every BUILT-IN widget below says
-# which.
-#
-# THE PLUGIN WIDGETS CANNOT. `[widget.<name>.actions]` on a plugin widget is not
-# a binding that fails at runtime, it is a key noctalia does not know:
-#
-#     $ noctalia config validate
-#     WARN  30-bar.toml:172:5: widget.failedunits.actions: unknown setting
-#
-# The four blocks that used to be here were inert, and one of them was making a
-# claim -- hardware's left-click opening the control centre -- that had never
-# been true. They are gone rather than left as decoration. A plugin widget's
-# gestures are the plugin's to define, and plugin.toml's [[widget]] entries take
-# only `id` and `entry`, so at present these four have none at all.
+# PLUGIN WIDGETS CANNOT TAKE [widget.<name>.actions] -- it is not a binding that
+# fails at runtime, it is a key noctalia does not know, and `config validate`
+# reports it as an unknown setting.
 
 [widget.workspaces]
 type                = "workspaces"
 focused_output_only = false
-
-# Dots, not digits.
-#
-# show_labels = false is the whole of that: 40-bindings.conf numbers the
-# workspaces 1-9 and the number is on the key you just pressed, so the bar
-# repeating it is the same redundancy the three sysmon labels were removed for.
-#
-# occupied_color and urgent_color name a PALETTE ROLE rather than a hex value, so
-# palettes/bazzite-grey.json stays the one place a colour is decided and the
-# greyscale calibration behind greeter.toml survives. On that palette tertiary is
-# #5a5a5a and secondary is #9a9a9a -- so an occupied workspace is a mid grey and
-# an urgent one is a brighter grey. Brightness, not hue, which is the rule the
-# bar, the launcher, the lock screen and dim_inactive all already follow.
+# Dots, not digits: the number is already on the key you pressed. The colours
+# name a PALETTE ROLE rather than a hex, so bazzite-grey.json stays the one
+# place a colour is decided.
 show_labels         = false
 pill_scale          = 0.6
 active_pill_size    = 2.0
@@ -205,16 +119,10 @@ min_length = 0.0
     [widget.active_window.actions]
     middle = "none"
 
-# Screen capture and microphone indicator.
-#
-# Not decoration: screen sharing through xdg-desktop-portal-wlr is whole-output
-# only, with no window picker. When something is capturing, it is capturing
-# everything, and this is the only thing on screen that says so.
-#
-# hide_inactive is what makes that true rather than merely available: the widget
-# takes no width at all until something is actually capturing, so its appearing
-# IS the signal. A permanently visible glyph that changes state would be one more
-# thing to learn to ignore.
+# Screen sharing through xdg-desktop-portal-wlr is whole-output only, with no
+# window picker: when something is capturing, it is capturing everything, and
+# this is the only thing on screen that says so. hide_inactive is what makes its
+# appearing the signal, rather than one more glyph to learn to ignore.
 [widget.privacy]
 type          = "privacy"
 hide_inactive = true
@@ -222,59 +130,33 @@ hide_inactive = true
     [widget.privacy.actions]
     middle = "none"
 
-# The tray sits OUTSIDE the pill, to its left, because its contents are not
-# ours: they are whatever applications registered an icon, drawn in their own
-# artwork at their own colours.
+# Outside the pill because its contents are not ours -- whatever applications
+# registered, in their own artwork.
 [widget.tray]
 type = "tray"
 
-# Screen capture, as a button.
-#
-# The bindings in /etc/sway/config.d/60-bindings-screenshot.conf are still the
-# fast path and still the only way to reach the region grab with one hand. This
-# is the discoverable one -- and the only affordance on the desktop that says
-# screenshots exist at all, now that grimshot, grim, slurp and swappy are gone
-# and capture is noctalia's own zwlr_screencopy_manager_v1 path.
-#
 # What it captures and where it lands are [shell.screenshot] in 10-shell.toml,
-# not here: one set of rules for the button and the keybinding both.
+# so the button and the keybinding share one set of rules.
 [widget.screenshot]
 type = "screenshot"
 
     [widget.screenshot.actions]
     middle = "none"
 
-# The colour picker, and the one widget on this bar whose NAME had to be changed
-# on the way in.
+# A plugin reference, <author>/<plugin>:<entry>, resolved through the community
+# source in 50-services.toml.
 #
-# The settings window generates a name from the widget kind, so this arrived
-# called `widget` -- which is legal, and useless the moment there are two of
-# them. A widget's name is its id (see the block at the top of this section), so
-# it is `color_picker` here and in `end` above.
-#
-# The type is a plugin reference: <author>/<plugin>:<entry>. It resolves through
-# the `community` source in 50-services.toml, which is why that source is enabled
-# there and was not before.
-#
-# EXPECT ONE VALIDATOR WARNING FOR THIS LINE, and do not chase it:
-#
-#     $ noctalia config validate
-#     WARN  30-bar.toml: widget.color_picker: unrecognized widget type
-#
-# `noctalia config validate` parses headlessly and never fetches, so it cannot
-# resolve a type that lives behind a git source -- the bazzite-sway widgets above
-# do not warn only because theirs is a path source sitting in this directory. The
-# check that actually answers the question is `noctalia msg plugins list`, which
-# asks the running shell and reports this one as enabled. verify.sh will surface
-# the warning as a `meh`; that is the shape of it.
+# EXPECT ONE VALIDATOR WARNING FOR THIS LINE and do not chase it: `config
+# validate` parses headlessly and never fetches, so it cannot resolve a type
+# behind a git source. `noctalia msg plugins list` is the check that answers.
 [widget.color_picker]
 type = "oldirtty/color_picker:widget"
 
-# The active keyboard layout. 30-input.conf gives sway `us,ru` and cycles them
-# with Alt+Shift; this glyph is the only thing on screen that says which is live.
+# 30-input.conf gives sway `us,ru` and cycles them with Alt+Shift; this glyph is
+# the only thing on screen that says which is live. Left-click cycles too.
 #
-# `short` draws "US"; `full` draws "English (US)", which a 24px strip at
-# scale 0.75 has no room for. noctalia emits no default for it, so it is pinned.
+# `short` draws "US"; `full` draws "English (US)", which this strip has no room
+# for. noctalia emits no default for it, so it is pinned.
 [widget.keyboard_layout]
 type    = "keyboard_layout"
 display = "short"
@@ -282,41 +164,28 @@ display = "short"
 # DEFINED BUT NOT PLACED. None of the four below is in `start` or `end` above --
 # the bar matches what the settings GUI had. Adding one back is a single line.
 
-# Sway's binding-mode indicator and the scratchpad count. waybar had
-# `sway/mode`; nothing counts the scratchpad -- so both are entries in the
-# plugin. Both hide themselves when they have nothing to say.
 [widget.swaymode]
 type = "asinglebit/bazzite-sway:swaymode"
 
 [widget.scratchpad]
 type = "asinglebit/bazzite-sway:scratchpad"
 
-# Invisible until a unit fails. The one failure it cannot report is
-# noctalia.service, because then there is no bar -- that is verify.sh's job.
 [widget.failedunits]
 type = "asinglebit/bazzite-sway:failedunits"
 
-# Hardware: cpu, memory and package temperature as ONE glyph, with the figures
-# in the tooltip and the alert in the glyph's colour. A Luau entry rather than
-# three `sysmon` widgets, because the three text labels came off this bar
-# deliberately and are not coming back -- what mattered was the alert, not the
-# reading. The thresholds it colours against are in 50-services.toml under
-# [system.monitor], so the control centre and this widget agree.
 [widget.hardware]
 type = "asinglebit/bazzite-sway:hardware"
 
 [widget.output_volume]
 type       = "volume"
 device     = "output"
-# One glyph, no percentage beside it. The figure is in the OSD when the level
-# changes and in the control centre when it does not, which is the same division
-# the three sysmon labels came off this bar for -- and the reason every widget in
-# the pill can share one left-click target.
+# One glyph, no percentage: the figure is in the OSD when the level changes and
+# in the control centre when it does not.
 show_label = false
 
-    # Scroll still works -- the widget's own default -- so the glyph is a volume
-    # control without the panel at all. Right-click keeps the one escape hatch
-    # the panel cannot replace: pavucontrol, for routing and profiles.
+    # Scroll works by default, so the glyph is a volume control without the
+    # panel. Right-click keeps the one thing the panel cannot replace:
+    # pavucontrol, for routing and profiles.
     [widget.output_volume.actions]
     left   = "panel-toggle control-center"
     right  = "run pavucontrol"
@@ -324,7 +193,6 @@ show_label = false
 
 [widget.network]
 type       = "network"
-# As above: the glyph carries the state, the panel carries the numbers.
 show_label = false
 
     [widget.network.actions]
@@ -334,9 +202,8 @@ show_label = false
 [widget.bluetooth]
 type = "bluetooth"
 
-    # blueman-manager stays as the deep pairing dialogue. Routine pairing is
-    # noctalia's now -- it is an org.bluez.Agent1, which is what nm-applet's and
-    # blueman's applets were kept around for.
+    # Routine pairing is noctalia's -- it is an org.bluez.Agent1. blueman-manager
+    # stays as the deep pairing dialogue.
     [widget.bluetooth.actions]
     left   = "panel-toggle control-center"
     right  = "run blueman-manager"
@@ -350,10 +217,6 @@ type = "notifications"
     right  = "notification-dnd-toggle"
     middle = "notification-clear-active"
 
-# The clock is last, hard against the right edge, and the only text on that side
-# of the bar. A real calendar lives one click away in the control centre now,
-# which is what waybar/config.jsonc's Pango-markup <tt>{calendar}</tt> tooltip
-# was standing in for.
 [widget.clock]
 type   = "clock"
 format = "{:%H:%M}"
@@ -362,14 +225,9 @@ format = "{:%H:%M}"
     left   = "panel-toggle control-center"
     middle = "none"
 
-# The output meter, at the head of the group rather than the tail of it.
-#
-# The one thing on this bar with no state to read -- it is not reporting a value,
-# it is showing that sound is happening, which the volume glyph further right
-# cannot: a muted stream and a silent one look identical there.
-#
-# It draws in the palette like everything else, so on bazzite-grey it is motion
-# in grey rather than a spectrum. Nothing depends on noticing it.
+# The one thing here with no state to read: it shows that sound is happening,
+# which the volume glyph cannot -- a muted stream and a silent one look identical
+# there. Draws in the palette, so on bazzite-grey it is motion in grey.
 [widget.audio_visualizer]
 type = "audio_visualizer"
 

@@ -1,35 +1,15 @@
 --!nonstrict
--- cpu load, memory and package temperature as one glyph.
---
--- The port of dotfiles/waybar/stats.sh. Two things from that file are
--- load-bearing and are preserved verbatim in spirit:
---
---  1. THE SENSOR IS FOUND BY NAME, NEVER BY INDEX. thermal_zone0 on this box is
---     `acpitz`, a chassis sensor that reads near 28C; the package sensor is
---     zone 1 *today*. An index would be wrong the first time the kernel
---     reordered them, and wrong quietly.
---  2. THE THRESHOLDS ARE THE POINT. The numbers are one hover away either way;
---     what the bar is for is brightening when the machine is in trouble without
---     anyone hovering anything.
---
--- What is NOT preserved: stats.sh approximated cpu use as the 1-minute load
--- average over nproc, and said so -- an instantaneous sample would have needed
--- two /proc/stat reads a fraction of a second apart, i.e. a sleep on waybar's
--- own thread. Nothing here shares a thread with the bar's rendering, so this
--- takes the two samples and reports actual utilisation. The load triple stays
--- in the tooltip, which is where stats.sh put it so the number could be checked.
+-- cpu load, memory and package temperature as one glyph. The thresholds are the
+-- point: the bar brightens when the machine is in trouble, so the figures never
+-- have to be hovered.
 
--- stats.sh:91-93, verbatim. 85C is where this box's part pulls clocks back; 95%
--- of 24 threads means the machine is not yours. Kept in step with
--- [system.monitor] in dotfiles/noctalia/50-services.toml by hand -- verify.sh
--- compares the two, because two copies of a threshold that disagree are worse
--- than one copy in the wrong place.
+-- Kept in step with [system.monitor] in 50-services.toml by hand; verify.sh
+-- compares the two.
 local TEMP_WARN, TEMP_CRIT = 75, 85
 local CPU_WARN,  CPU_CRIT  = 80, 95
 local MEM_WARN,  MEM_CRIT  = 85, 95
 
--- Sensor `type` values that name a CPU package sensor, in preference order,
--- then hwmon `name` values for the same. Straight from stats.sh.
+-- Package-sensor `type` values in preference order, then hwmon `name` values.
 local ZONE_TYPES  = { x86_pkg_temp = true, k10temp = true, cpu_thermal = true, soc_thermal = true }
 local HWMON_NAMES = { coretemp = true, k10temp = true, zenpower = true }
 
@@ -40,8 +20,8 @@ local function trim(s: string?): string
   return (string.gsub(s, "^%s*(.-)%s*$", "%1"))
 end
 
--- Actual utilisation from two /proc/stat samples, one poll interval apart.
--- Returns nil on the first tick, when there is no previous sample to diff.
+-- Utilisation from two /proc/stat samples one interval apart. nil on the first
+-- tick, when there is nothing to diff against.
 local function cpuPct(): number?
   local stat = noctalia.readFile("/proc/stat")
   if not stat then return nil end
@@ -83,8 +63,10 @@ local function mem(): (number?, string?)
   return pct, human
 end
 
+-- MATCHED BY NAME, NEVER BY INDEX. thermal_zone0 here is `acpitz`, a chassis
+-- sensor reading near 28C; the package sensor is zone 1 today. An index would
+-- break the first time the kernel reordered them, and break quietly.
 local function tempC(): number?
-  -- thermal_zone*, matched on `type`.
   local zones = noctalia.listDir("/sys/class/thermal")
   if zones then
     for _, name in zones do
@@ -123,9 +105,7 @@ local function loadTriple(): string
   return `{a} {b} {c}`
 end
 
--- The alert, and the whole reason this is on the bar. In the ported palette
--- these three roles are #9a9a9a, #d8d8d8 and #ffffff -- exactly the progression
--- waybar/style.css drew with .warning and .critical.
+-- These three roles are #9a9a9a, #d8d8d8 and #ffffff in this palette.
 local function severity(cpu: number?, memPct: number?, temp: number?): string
   local function over(v: number?, warn: number, crit: number): number
     if not v then return 0 end
@@ -142,8 +122,6 @@ local function severity(cpu: number?, memPct: number?, temp: number?): string
 end
 
 function update()
-  -- 10s, as custom/hardware's interval was: one wakeup every ten seconds is
-  -- fewer than the three 5s modules this replaced.
   noctalia.setUpdateInterval(10000)
 
   local cpu = cpuPct()
@@ -153,8 +131,7 @@ function update()
   barWidget.setGlyph("cpu")
   barWidget.setGlyphColor(severity(cpu, memPct, temp))
 
-  -- Structured rows rather than the fixed-width printf columns stats.sh needed:
-  -- the host aligns them, so the %3d padding is deleted rather than translated.
+  -- The host aligns these rows, so no padding is needed.
   barWidget.setTooltip({
     { "cpu",  cpu and `{cpu}%` or "--" },
     { "load", loadTriple() },

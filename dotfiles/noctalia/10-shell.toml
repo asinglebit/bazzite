@@ -1,70 +1,31 @@
-# The shell itself: what it owns, and the surfaces that are not the bar.
-
-# Global UI scale, over every surface noctalia draws.
-#
-# This is the knob 30-bar.toml points at rather than growing a
-# [bar.default.monitor.*] table: ONE number for both panels, not a constant per
-# connector. 0.9 because noctalia's own element sizing runs a shade large next to
-# the 24px strip this bar inherited from waybar -- and the bar takes a second
-# 0.75 of its own on top of it, so the two multiply.
+# One number for every surface noctalia draws, which is what 30-bar.toml points
+# at rather than growing a per-connector table. The bar multiplies its own 0.75
+# on top of this.
 [accessibility]
 ui_scale = 0.9
 
 [shell]
-# THE MOST CONSEQUENTIAL LINE IN THIS DIRECTORY, and it is off by default.
-#
-# mate-polkit is uninstalled and lxqt-policykit's sway drop-in is retired
-# (system_files/etc/sway/config.d/95-autostart-policykit-agent.conf), so this is
-# the only authentication agent on the machine. With no agent, pkexec, ujust and
-# bazzite-user-setup do not fail -- they HANG, with no error anywhere. That is
-# the failure mode 10-sway-install.sh has a paragraph about, and this is the
-# switch that avoids it.
+# THE MOST CONSEQUENTIAL LINE HERE, and it is off by default. This is the only
+# authentication agent on the machine -- mate-polkit is uninstalled and
+# lxqt-policykit's drop-in is retired. With no agent, pkexec, ujust and
+# bazzite-user-setup do not fail, they HANG, with no error anywhere.
 polkit_agent = true
 
-# NOT Inter, and that makes the shell the one surface on this desktop that is
-# not -- the gschema override, the greeter and the GTK apps all still say Inter.
-# This is Noto Sans CJK SC, whose Latin is Source Han Sans: a wider, rounder face
-# than Inter at the same size, which is what carries a bar shrunk to 0.75.
-#
-# It has to be a family fontconfig actually resolves. `fc-match "Noto Sans CJK
-# SC"` must answer NotoSansCJK-Regular.ttc and not fall through to DejaVu -- a
-# miss is not an error, it is the whole shell quietly rendering in the fallback.
-#
-# What it is definitely NOT is the bar's old font. waybar was set in Hack Nerd
-# Font Mono because its glyphs WERE Nerd Font glyphs; noctalia ships its own icon
-# font (noctalia-tabler.ttf), so the mono face is no longer load-bearing for
-# anything but the terminal, and the bar can read as UI text rather than as a
-# monospace dump. 30-bar.toml overrides this again for the bar alone.
+# Has to be a family fontconfig actually resolves: a miss is not an error, it is
+# the whole shell quietly rendering in the fallback. 30-bar.toml overrides this
+# for the bar alone.
 font_family = "Noto Sans CJK SC"
 
-# The desktop has exactly one corner radius, 9px, which SwayFX applies to whole
-# surfaces from 25-effects.conf. This scales noctalia's radii for the elements
-# INSIDE a surface -- list rows, buttons, sliders -- which the compositor cannot
-# reach. Set by eye, not calculated.
-#
-# 0.7, which is deliberately TIGHTER than the surface around it rather than in
-# proportion to it. At 1.0 a list row curves like the panel holding it, which
-# reads as a pill inside a pill; under it, the row reads as a row and the panel
-# keeps the only curve that is doing any work.
+# Scales the radii of elements INSIDE a surface -- list rows, buttons, sliders --
+# which the compositor cannot reach. Deliberately tighter than the surface
+# around it: at 1.0 a list row curves like the panel holding it.
 corner_radius_scale = 0.7
 
-# On -- and the reason this used to be off was simply wrong.
-#
-# The claim was that SwayFX already draws a shadow for these surfaces, so
-# noctalia's would be a second one on top. It does not. `shadows enable` in
-# 25-effects.conf applies to VIEWS; a layer surface gets only what its own
-# `layer_effects` line asks for, and not one of those lines asks for shadows.
-# Checked against the running compositor rather than reasoned about -- sway-ipc
-# reports the bar's surface as
-#
-#     {'blur': True, ..., 'shadows': False, 'corner_radius': 0}
-#
-# So this is the ONLY shadow the popups get, and now that the panels are frosted
-# rather than filled ([shell.panel] transparency_mode below) it is what separates
-# one from whatever it is floating over.
+# The only shadow the popups get. SwayFX's `shadows enable` applies to VIEWS; a
+# layer surface gets only what its own layer_effects line asks for, and none of
+# them asks for shadows.
 popup_shadows = true
 
-# Hairlines, matching #2e2e2e's role in the palette.
 card_borders   = true
 button_borders = true
 input_borders  = true
@@ -73,25 +34,15 @@ popup_borders  = true
 time_format = "{:%H:%M}"
 date_format = "%A, %x"
 
-# Off: this is an image, not a first run. The wizard would appear on every fresh
+# This is an image, not a first run -- the wizard would appear on every fresh
 # install before `just link-dotfiles` had put this file in place.
 setup_wizard_enabled = false
 telemetry_enabled    = false
 
-# The clipboard history that cliphist and rofi-clipboard.sh used to be. The
-# encrypted store is noctalia's own; `storage` is left at its default so the key
-# comes from the secret service, which gnome-keyring already provides and
-# gnome-keyring-pam already unlocks at login.
 clipboard_enabled             = true
 clipboard_history_max_entries = 100
 clipboard_keep_from_closed_apps = true
 
-    # Screen capture. grimshot/grim/slurp/swappy are retired -- noctalia goes
-    # straight to zwlr_screencopy_manager_v1, so region capture is not routed
-    # through the whole-output-only portal.
-    #
-    # WHAT WENT WITH THEM: screen RECORDING. There is no recorder in this image
-    # any more, and noctalia's capture is stills only.
     [shell.screenshot]
     freeze_screen       = true
     copy_to_clipboard   = true
@@ -100,18 +51,10 @@ clipboard_keep_from_closed_apps = true
     confirm_region      = false
     remember_last_region = true
 
-    # Where each surface opens. The control centre and the session menu are
-    # ATTACHED -- anchored under the bar widget that opens them, which is what
-    # made the status pill one control surface. The launcher and the clipboard
-    # are centred, as rofi was.
-    #
-    # control_center_position is pinned to "center" rather than left at "auto"
-    # because FOUR widgets open that one panel -- 30-bar.toml binds left-click on
-    # volume, network, bluetooth and notifications to it. "auto" anchors the panel
-    # under whichever glyph was clicked, so it walked along the bar depending on
-    # where in the pill you pressed. Pinned, it opens in the same place every
-    # time.
     [shell.panel]
+    # control_center_position is pinned rather than left at "auto" because FOUR
+    # bar widgets open that one panel; "auto" anchored it under whichever glyph
+    # was clicked, so it walked along the bar.
     control_center_placement = "attached"
     control_center_position  = "center"
     session_placement        = "attached"
@@ -126,34 +69,21 @@ clipboard_keep_from_closed_apps = true
     borders                  = true
     shadow                   = false
 
-    # Frosted rather than filled, and this is the setting that makes the blur in
-    # 25-effects.conf visible at all. Same argument as the bar's
-    # background_opacity: at "solid" (the default) the compositor still runs a
-    # blur pass behind every panel and the panel paints straight over it.
+    # This is what makes 25-effects.conf's blur visible at all: at "solid" the
+    # compositor still runs a blur pass behind every panel and the panel paints
+    # straight over it.
     transparency_mode        = "glass"
 
-    # ...and this is what "glass" costs. Over a translucent panel a bare list row
-    # loses its edges against whatever shows through; a background per row puts
-    # them back, so a list reads as rows rather than as text adrift on the
-    # desktop.
+    # What "glass" costs -- over a translucent panel a bare list row loses its
+    # edges against whatever shows through.
     list_item_background     = true
 
-    # The rounded screen corners noctalia paints over the whole output.
-    #
-    # 16, down from the default 32. That default is sized for a floating bar with
-    # a margin around it; this bar spans the full width hard against the top edge,
-    # so a 32px curve bit into the BAR's corners rather than the screen's.
-    #
-    # noctalia's overlay, not the compositor's. Its namespace,
-    # noctalia-screen-corner, is one of the four 25-effects.conf deliberately
-    # leaves out of layer_effects -- that file explains why a full-output surface
-    # is the wrong place for a corner_radius.
+    # 16, down from the default 32, which is sized for a floating bar with a
+    # margin. This bar spans the full width at the top edge, so a 32px curve bit
+    # into the BAR's corners rather than the screen's.
     [shell.screen_corners]
     size = 16
 
-    # The launcher rofi used to be. providers behind a prefix character: /calc,
-    # /emoji, /windows, /session, /wallpaper. The window mode is what
-    # /etc/sway/config's own TODO was waiting on rofi for.
     [shell.launcher]
     provider_prefix = "/"
     sort_by_usage   = true
@@ -166,23 +96,17 @@ clipboard_keep_from_closed_apps = true
     enabled = true
     speed   = 1.0
 
-    # Never. See 20-theme.toml -- the greeter's /var copy is refreshed from the
-    # image on every boot, so a sync write does not survive a reboot.
+    # Never: the greeter's /var copy is recreated from the image on every boot,
+    # so a sync write does not survive a reboot. See 20-theme.toml.
     [shell.greeter_sync]
     auto_sync = false
 
-# The OSD this desktop has never had. /usr/share/sway/config.d/60-bindings-
-# volume.conf and -brightness.conf faked one by sending a notification with an
-# `int:value` hint for swaync to render as a progress bar; both drop-ins are
-# retired and these are the real thing.
 [osd]
 enabled            = true
 position           = "top_center"
 background_opacity = 0.72
 border             = true
 scale              = 1.0
-# Empty means every monitor. Naming connectors here would be the mistake the
-# bar's own comment refuses.
 monitors           = []
 
     [osd.kinds]
@@ -203,8 +127,6 @@ monitors           = []
     keyboard_layout    = false
     power_profile      = true
 
-# Notifications. swaync drew these at the top right with a 320px control centre
-# beside them; the geometry carries over.
 [notification]
 enable_daemon      = true
 position           = "top_right"
@@ -215,14 +137,8 @@ show_actions       = true
 collapse_on_dismiss = true
 monitors           = []
 
-# Brightness over DDC/CI.
-#
-# This is new capability rather than a port. waybar's config dropped `backlight`
-# as "not applicable to a desktop", which was true of an internal panel and never
-# true of these two monitors -- /sys/class/backlight is empty here, so
-# brightnessctl and the retired 60-bindings-brightness.conf never did anything.
-# ddcutil talks to the monitors over I2C instead, and ships the udev rule that
-# gives the seat user access to /dev/i2c-*.
+# /sys/class/backlight is empty here -- both outputs are external -- so ddcutil
+# talks to the monitors over I2C instead. See 40-bindings.conf.
 [brightness]
 enable_ddcutil     = true
 sync_all_monitors  = false

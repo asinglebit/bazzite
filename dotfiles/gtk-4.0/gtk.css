@@ -1,78 +1,22 @@
 /*
  * The same greyscale palette as gtk-3.0/gtk.css, for the GTK4 half of the
- * desktop. Read that file first -- the mapping and every reason behind it are
- * argued there, and this file only carries what GTK4 needs on top.
+ * desktop. Read that file first -- the mapping and the reasons are argued there.
  *
- * WHY THIS IS STILL AN @define-color FILE. libadwaita moved its colours to CSS
- * custom properties in 1.6 and deprecated @define-color, so the obvious
- * expectation is that a GTK4 sheet has to be written as
- * `:root { --window-bg-color: ... }`. It does not, because on 1.9.3 the
- * variables are a front end for the old names rather than a replacement.
- * Extracted from the library's own stylesheet
- * (gresource extract /usr/lib64/libadwaita-1.so.0 /org/gnome/Adwaita/styles/gtk.css):
+ * STILL AN @define-color FILE even though libadwaita deprecated it in 1.6: on
+ * 1.9.3 the CSS custom properties are a front end for the old names, not a
+ * replacement (`--window-bg-color: @window_bg_color` and so on). 42 of the 44
+ * surface and semantic variables are sourced that way, so this block reaches
+ * them. The two that are not are in the :root block at the end.
  *
- *     :root {
- *       --window-bg-color:  @window_bg_color;
- *       --view-bg-color:    @view_bg_color;
- *       --popover-bg-color: @popover_bg_color;
- *       ...
- *     }
+ * Reaches pavucontrol (plain GTK4, via adw-gtk3's gtk-4.0 sheet), any other
+ * GTK4 app, and GTK4 file choosers hosted by GTK3 apps through the portal.
+ * Firefox, Chromium and Electron are NOT in that list -- they follow the portal
+ * colour-scheme and their own internal palettes past that.
  *
- * 42 of the 44 surface and semantic variables are sourced that way, so the
- * @define-color block below reaches all of them. The two that are not are
- * handled in the :root block at the end of this file.
- *
- * WHAT IT REACHES, and this is three channels rather than one:
- *
- *   pavucontrol -- plain GTK4, no libadwaita. It follows
- *   gtk-theme-name=adw-gtk3-dark from settings.ini, which resolves to
- *   /usr/share/themes/adw-gtk3-dark/gtk-4.0/gtk.css. That file is two @imports:
- *   libadwaita.css, adw-gtk3's port of the same stylesheet, and
- *   libadwaita-tweaks.css. Both define the variables from @define-color the way
- *   the real library does -- with one exception, noted in the :root block.
- *
- *   swaync -- GTK4 plus libadwaita, so it ignores gtk-theme-name entirely and
- *   uses the library's built-in stylesheet. Nothing here reaches its own
- *   colours: swaync/config.json sets `"cssPriority": "user"` precisely so its
- *   sheet loads above this file, and swaync/style.css redefines every token it
- *   uses with no literal left to leak. That ordering was written before this
- *   file existed; it is what keeps the notification centre unaffected now that
- *   it does.
- *
- *   Anything else GTK4 -- future apps, and GTK4 file choosers hosted by GTK3
- *   apps through the portal.
- *
- * Firefox, Chromium and Electron are NOT in that list and never were. They
- * follow org.freedesktop.appearance color-scheme from the XDG portal, which is
- * the dconf key gtk-4.0/settings.ini documents; they have their own internal
- * palettes past that point.
- *
- * NOT AN @import OF gtk-3.0/gtk.css. GTK resolves a relative @import against
- * the file it is reading, and ~/.config/gtk-4.0/gtk.css is a symlink into this
- * repo, so the import would resolve inside the repo and make the desktop
- * depend on the repo being checked out at that path -- the trap
- * rofi/config.rasi documents for @theme. The palette is restated instead, as
- * the two settings.ini files already restate their shared keys.
- *
- * Palette, dark to light. Identical to gtk-3.0/gtk.css and waybar/style.css:
- *   #1a1a1a  the darkest surface -- content views, and every floating panel
- *   #242424  the desktop grey -- window bodies and their chrome
- *   #2e2e2e  hairline, and the selection fill
- *   #5a5a5a  dim    - disabled text
- *   #9a9a9a  base   - secondary text, and "it worked"
- *   #d8d8d8  bright - primary text, and the accent
- *   #ffffff  alert  - errors and destructive actions
- *
- * NO SELECTION RULES HERE, unlike the GTK3 file, which pins the treeview
- * family to what its list rows already compute. That block exists for Thunar's
- * file list; the GTK4 channel has nothing equivalent -- pavucontrol is sliders
- * and tabs, and swaync's lists are its own stylesheet's business. libadwaita
- * also has the inconsistency the GTK3 note describes only in part: its
- * `row:selected` is color-mix(currentColor 10%), the same 10% adw-gtk3 uses,
- * so a list row lands on #2d2d2d here too, unaided.
+ * NOT an @import of gtk-3.0/gtk.css: GTK resolves a relative @import against
+ * the file it is reading, and this path is a symlink into the repo, so the
+ * import would make the desktop depend on the repo being checked out.
  */
-
-/* --- Surfaces -------------------------------------------------------------- */
 @define-color view_bg_color      #1a1a1a;
 @define-color window_bg_color    #242424;
 @define-color headerbar_bg_color #242424;
@@ -80,18 +24,15 @@
 @define-color popover_bg_color   #1a1a1a;
 @define-color dialog_bg_color    #1a1a1a;
 @define-color card_bg_color      #1a1a1a;
-
 @define-color sidebar_backdrop_color   #242424;
 @define-color headerbar_backdrop_color #242424;
 
-/* GTK4 only. libadwaita's split views have a second, lighter sidebar tier that
- * GTK3 has no equivalent for; it joins the window like the first one. */
+/* GTK3 has no equivalent for these; the secondary sidebar joins the window. */
 @define-color secondary_sidebar_bg_color       #242424;
 @define-color secondary_sidebar_backdrop_color #242424;
 @define-color secondary_sidebar_fg_color       #d8d8d8;
 @define-color secondary_sidebar_border_color   #2e2e2e;
 
-/* --- Text ------------------------------------------------------------------ */
 @define-color window_fg_color        #d8d8d8;
 @define-color view_fg_color          #d8d8d8;
 @define-color headerbar_fg_color     #d8d8d8;
@@ -102,15 +43,10 @@
 @define-color headerbar_border_color #d8d8d8;
 @define-color insensitive_fg_color   #5a5a5a;
 
-/* --- Accent ---------------------------------------------------------------- */
 @define-color accent_bg_color #d8d8d8;
 @define-color accent_fg_color #1a1a1a;
 @define-color accent_color    #d8d8d8;
 
-/* --- Semantics -------------------------------------------------------------
- *
- * waybar's brightness ladder, per the long note in gtk-3.0/gtk.css.
- */
 @define-color success_bg_color     #9a9a9a;
 @define-color success_fg_color     #1a1a1a;
 @define-color success_color        #9a9a9a;
@@ -124,53 +60,26 @@
 @define-color destructive_fg_color #1a1a1a;
 @define-color destructive_color    #ffffff;
 
-/* --- Borders ---------------------------------------------------------------
- *
- * `borders` is a GTK3 name that libadwaita does not read -- it is here for
- * adw-gtk3's GTK4 port, which still resolves it. The variable the library
- * itself uses is set in the :root block below.
- */
+/* A GTK3 name libadwaita does not read -- here for adw-gtk3's GTK4 port, which
+ * still resolves it. The variable the library itself uses is below. */
 @define-color borders           #2e2e2e;
 @define-color unfocused_borders #2e2e2e;
 
-/* --- The two variables @define-color cannot reach --------------------------
+/*
+ * The two exceptions to the "42 of 44" above. Both are needed.
  *
- * These are the exceptions to the "42 of 44" above, and both are needed.
+ * --border-color is not sourced from @borders by either sheet; both compute it
+ * from currentColor at 15% opacity, which resolves to roughly #3f3f3f --
+ * brighter than the hairline every other surface draws. Setting
+ * --border-opacity instead cannot work: one percentage cannot hit #2e2e2e
+ * against both #242424 and #1a1a1a.
  *
- * --border-color. Neither libadwaita nor adw-gtk3's port sources it from
- * @borders; both compute it as
- *
- *     color-mix(in srgb, currentColor var(--border-opacity), transparent)
- *
- * at --border-opacity: 15%, which from #d8d8d8 over #242424 resolves to
- * roughly #3f3f3f -- brighter than the hairline every other surface on this
- * desktop draws, and not a value the ramp contains. Pinned flat for the same
- * reason gtk-3.0/gtk.css pins `borders`: one value that stays visible against
- * both #1a1a1a and #242424.
- *
- * Setting --border-opacity instead was the alternative, and it is worse: a
- * single percentage cannot hit #2e2e2e against both surfaces. 6% lands on it
- * over the #242424 window and disappears to #252525 over the #1a1a1a view.
- *
- * --accent-bg-color. This one is a trap rather than a computation.
- * libadwaita's own sheet has `--accent-bg-color: @accent_bg_color` and follows
- * the block above correctly, so swaync and any other libadwaita app need
- * nothing here. But adw-gtk3's libadwaita-tweaks.css -- the second of the two
- * @imports, so the last word for a plain GTK4 app -- overrides it:
- *
- *     :root { --accent-bg-color: var(--accent-blue); }
- *
- * pinned to #3584e4, bypassing the @define-color it re-declares three lines
- * earlier. Without this override pavucontrol keeps a blue accent while every
- * other app on the desktop is grey, and nothing in the @define-color block can
- * reach it.
- *
- * --accent-color is restated for the same reason gtk-3.0/gtk.css restates
- * `accent_color`: libadwaita derives the standalone accent as
- * oklab(from var(--accent-bg-color) max(l, 0.85) a b), raising its lightness
- * for use as text. #d8d8d8 is a neutral grey at L 0.88, so that transform is
- * already a no-op -- this states the value rather than depending on it staying
- * one.
+ * --accent-bg-color is a trap. libadwaita's own sheet follows the block above
+ * correctly, but adw-gtk3's libadwaita-tweaks.css -- the last word for a plain
+ * GTK4 app -- overrides it with `var(--accent-blue)`, pinned to #3584e4,
+ * bypassing the @define-color it re-declares three lines earlier. Without this,
+ * pavucontrol keeps a blue accent while everything else is grey, and nothing in
+ * the @define-color block can reach it.
  */
 :root {
     --border-color: #2e2e2e;

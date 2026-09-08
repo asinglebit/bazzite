@@ -1,34 +1,11 @@
-# Sourced by start-sway(1) under `set -o allexport`, after /etc/sway/environment
-# and after the environment.d(5) generator. Plain assignments are therefore
-# exported into sway's own environment and inherited by everything sway starts.
-#
-# Keep driver/compositor variables (SWAY_EXTRA_ARGS, WLR_*) in
-# /etc/sway/environment, which is image-level -- sway will not start on this GPU
-# without them, so they belong to the artifact rather than to a user.
+# Sourced by start-sway(1) under `set -o allexport`, so plain assignments are
+# exported into sway's environment. Driver and compositor variables
+# (SWAY_EXTRA_ARGS, WLR_*) belong in /etc/sway/environment instead -- sway will
+# not start on this GPU without them, so they are part of the image.
 
-# Qt has no theming of its own here. Qt selects a platform theme from
-# XDG_CURRENT_DESKTOP, which is "sway", so it matches nothing and falls back to
-# a light palette no matter what GTK and the portal are doing. Measured with an
-# unset variable: Window #efefef, text #000000, colorScheme Unknown.
-#
-# "xdgdesktopportal" makes Qt read org.freedesktop.appearance color-scheme from
-# the XDG portal -- the same signal GTK4/libadwaita, Firefox, Chromium and
-# Electron already follow, so there is one source of truth for the whole
-# desktop rather than a parallel Qt-only setting.
-#
-# Measured against the obvious alternative, QT_QPA_PLATFORMTHEME=gtk3:
-#
-#                      Window    Base (text fields, lists)
-#   gtk3               #323232   #323232   <- identical, fields do not contrast
-#   xdgdesktopportal   #323232   #242424   <- distinct, and #242424 is exactly
-#                                             the desktop grey in 20-appearance.conf
-#
-# Both give colorScheme=Dark; gtk3 flattens Base onto Window, which makes text
-# inputs and list views disappear into the dialog. Hence the portal one.
-#
-# Survives boot 2: libqxdgdesktopportal.so ships in qt6-qtbase-gui, which the
-# --no-autoremove in build_files/30-kde-remove.sh deliberately keeps, and that
-# script's guard rails already assert xdg-desktop-portal{,-gtk} survive.
-# KDEPlasmaPlatformTheme6.so would NOT survive -- plasma-integration is on the
-# removal list.
+# Qt picks its platform theme from XDG_CURRENT_DESKTOP, which is "sway", so it
+# matches nothing and falls back to a light palette. The portal backend makes Qt
+# follow org.freedesktop.appearance, the same signal GTK4, Firefox and Electron
+# use. Not gtk3: that flattens Base onto Window, so text inputs and list views
+# lose all contrast against the dialog.
 QT_QPA_PLATFORMTHEME=xdgdesktopportal

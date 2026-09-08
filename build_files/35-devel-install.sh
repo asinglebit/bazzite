@@ -4,9 +4,9 @@ set -euxo pipefail
 
 CTX="${CTX:-/ctx}"
 
-# The runtime halves of these all ship in the base image already; only the -devel
-# side is missing, and the debugger's -sys crates need it to compile. gcc, g++,
-# make and pkg-config are already present, so no toolchain packages here.
+# The runtime halves all ship in the base image; only the -devel side is
+# missing, and the debugger's -sys crates need it to compile. gcc, g++, make and
+# pkg-config are already present.
 dnf5 install -y \
     dbus-devel \
     gtk3-devel \

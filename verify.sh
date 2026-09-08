@@ -37,30 +37,23 @@ ldd /usr/bin/sway 2>/dev/null | grep -q 'libscenefx' \
 grep -q '^WLR_RENDERER=gles2$' /etc/sway/environment \
     && ok "WLR_RENDERER=gles2 (SwayFX fx_renderer is GLES2-only)" \
     || no "WLR_RENDERER is not gles2 -- SwayFX will run and draw NO effects, silently"
-# Proof the effects config was actually parsed, not just present on disk.
+# Proof the effects config was PARSED, not just present on disk.
 #
-# NOT via `swaymsg -t get_config`, which is what this used to grep for
-# corner_radius. That reply is the top-level /etc/sway/config and nothing else
-# -- sway never concatenates the includes into it -- so the check could not pass
-# whatever the session was doing, and spent its life reporting a warning that
-# was never real. Read it back and you get 7921 chars against a 7923-byte file.
-#
-# What sway does leave behind is the include list layered-include generated for
-# THIS session, under /run/user/$UID/sway/. A file in that list which failed to
-# parse would have raised the swaynag error bar, which the next check catches,
-# so "listed" plus "no error bar" is the proof.
+# Not via `swaymsg -t get_config`: that reply is the top-level /etc/sway/config
+# only -- sway never concatenates the includes into it -- so the check could
+# never pass. What sway does leave behind is layered-include's generated include
+# list under /run/user/$UID/sway/. A file in it that failed to parse would have
+# raised the swaynag bar, which the next check catches, so "listed" plus "no
+# error bar" is the proof.
 if grep -qs '/sway/config\.d/25-effects\.conf' /run/user/"$(id -u)"/sway/layered-include-*.conf; then
     ok "25-effects.conf is in this session's include list"
 else
     meh "25-effects.conf not in this session's include list (reload after link-dotfiles?)"
 fi
-# sway conflates config WARNINGS with errors: an overwritten binding, or an
-# i3-only directive such as client.background, raises the same "There are errors
-# in your config file" swaynag bar that a syntax error does. Nothing else in
-# this desktop spawns swaynag -- $mod+Shift+e is the shell's session panel now --
-# so a running one
-# means the config raised something. `bindsym --no-warn` is how a deliberate
-# override says it meant it.
+# sway conflates config WARNINGS with errors: an overwritten binding raises the
+# same swaynag bar a syntax error does. Nothing else here spawns swaynag, so a
+# running one means the config raised something. `bindsym --no-warn` is how a
+# deliberate override says it meant it.
 pgrep -x swaynag >/dev/null \
     && no "sway raised a config error/warning bar -- read it, or: sway --validate -d" \
     || ok "sway config raised no error or warning bar"
@@ -83,12 +76,9 @@ dm=$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null)
 head_ "Greeter (noctalia-greeter, own compositor)"
 greeter_fail_at_start=$fail
 # THIS SECTION AND `just greeter-preview` ARE THE ONLY CHECKS THAT SEE A LIVE
-# GREETER. The build validates greeter.toml's syntax and palette and runs
-# `noctalia-greeter sessions`, but it cannot start the greeter itself: the
-# compositor wants DRM and a logind seat, and no subcommand reads the config. The
-# sway-hosted gtkgreet this replaced could at least be parsed with `sway -C`. See
-# the note at the end of build_files/17-noctalia-greeter.sh. Each of the checks
-# below is a blank login screen if it fails.
+# GREETER -- the build cannot start it (the compositor wants DRM and a seat, and
+# no subcommand reads the config). Each check below is a blank login screen if
+# it fails.
 command -v noctalia-greeter-session >/dev/null \
     && ok "noctalia-greeter present" || no "noctalia-greeter-session MISSING -- greetd has nothing to run"
 command -v noctalia-greeter-compositor >/dev/null \
@@ -119,24 +109,18 @@ if [[ -d "$state" ]]; then
     [[ "$(ls -Zd "$state")" == *xdm_var_lib_t* ]] \
         && ok "state directory labelled xdm_var_lib_t" \
         || no "state directory is $(ls -Zd "$state" | awk '{print $1}') -- SELinux will deny the greeter"
-    # Two things this check got wrong for as long as it has existed, both of
-    # which made it fail on a perfectly healthy greeter.
+    # Two things this check needs, both of which it once got wrong on a
+    # perfectly healthy greeter.
     #
-    # 1. IT NEEDS A PRIVILEGED READ. $state is 0750 greetd:greetd -- deliberately,
-    #    three checks up -- so an unprivileged run has no search permission on it
-    #    and `test -s` on anything inside can only ever return false. `sudo -n`,
-    #    so this never sits at a password prompt; with no cached credential the
-    #    two checks below are skipped rather than reported as broken, because a
+    # 1. A PRIVILEGED READ. $state is 0750 greetd:greetd, so unprivileged
+    #    `test -s` inside it can only return false. `sudo -n` so this never sits
+    #    at a prompt; with no cached credential the checks are SKIPPED, because a
     #    directory this script cannot read is not a broken login screen.
     #
-    # 2. IT CANNOT EXPECT THE IMAGE'S FILE VERBATIM. The greeter rewrites
-    #    greeter.toml when it starts, into its own canonical serialisation:
-    #    comments stripped, keys sorted, the palette indented under
-    #    [appearance.palette], and `scheme` dropped because that one is read from
-    #    sync.toml. So `^surface` never matched -- what is on disk is
-    #    `    surface = "#1a1a1a"`. The check is on the VALUE, leading whitespace
-    #    allowed. (The header the greeter writes claims "UI and Sync never write
-    #    this". It does: that header text is in the binary's own string table.)
+    # 2. NOT THE IMAGE'S FILE VERBATIM. The greeter rewrites greeter.toml on
+    #    start into its own canonical form -- comments stripped, keys sorted,
+    #    palette indented -- so `^surface` never matched. The check is on the
+    #    VALUE, leading whitespace allowed.
     if greeter_toml="$(sudo -n cat "$state/greeter.toml" 2>/dev/null)"; then
         [[ -n "$greeter_toml" ]] \
             && ok "greeter.toml copied from the image" \
@@ -150,12 +134,10 @@ if [[ -d "$state" ]]; then
         meh "greeter.toml not checked -- $state is 0750 greetd:greetd; run 'sudo -v' first"
     fi
 
-    # The user avatar, in two halves, because the greeter has no avatar key in
-    # greeter.toml -- it asks AccountsService for IconFile. The image ships the
-    # file; `just greeter-avatar` binds it to the account. The second half is
-    # per-user state under /var, so it cannot be in the image, and its failure
-    # mode is silent: the greeter falls back to its built-in line-art person
-    # icon, which looks like a design choice rather than a missing step.
+    # Two halves: the image ships the file, `just greeter-avatar` binds it to
+    # the account. The second half is per-user state under /var so it cannot be
+    # in the image, and its failure is silent -- the greeter falls back to its
+    # line-art person icon, which looks like a design choice.
     avatar=/usr/share/bazzite-sway/greeter-avatar.svg
     if [[ -s "$avatar" ]]; then
         ok "greeter avatar present in the image"
@@ -230,17 +212,12 @@ vulkaninfo --summary 2>/dev/null | grep -q 'NVIDIA' && ok "Vulkan sees the NVIDI
 pgrep -x Xwayland >/dev/null && ok "Xwayland running" || meh "Xwayland not running (no X11 client started yet)"
 
 head_ "Desktop services"
-# THE AGENT CHECK IS NOW A PROCESS CHECK, and that is a real loss of precision
-# worth naming. mate-polkit had its own process and its own .wants symlink, so
-# both halves were observable. noctalia registers a NoctaliaPolkitListener from
-# inside the shell process, and polkit exposes no way to ask which agent is
-# registered -- the only definitive probe is to call pkexec, which either pops a
-# dialog or hangs, and neither belongs in this script.
-#
-# So if the shell is up, the agent is up; the Shell section below is where that
-# is checked. This line exists to name the consequence, because with mate-polkit
-# uninstalled and lxqt-policykit's drop-in retired there is nothing else on this
-# machine that could answer.
+# A PROCESS CHECK, and that is a real loss of precision. noctalia registers its
+# polkit listener from inside the shell process, and polkit exposes no way to ask
+# which agent is registered -- the only definitive probe is calling pkexec, which
+# either pops a dialog or hangs. So if the shell is up the agent is up, and with
+# mate-polkit gone and lxqt-policykit retired there is nothing else that could
+# answer.
 pgrep -x noctalia >/dev/null \
     && ok "polkit agent: noctalia (the only one -- mate-polkit is gone)" \
     || no "no polkit agent -- pkexec, bazzite-user-setup and ujust will hang"
@@ -256,30 +233,21 @@ pgrep -f lxqt-policykit-agent >/dev/null \
 pgrep -x gnome-keyring-d >/dev/null && ok "gnome-keyring running (Secret portal backend)" \
     || meh "gnome-keyring not running -- app passwords will not persist"
 
-# The notification bus name.
-#
-# mako and swaync both shipped a D-Bus service file claiming
-# org.freedesktop.Notifications, and the whole reason swaync was started from
-# sway-session.target was to take the name before activation could choose wrongly.
-# Both are gone, and noctalia ships NO service file at all -- so nothing on this
-# machine is activatable for that name. If the shell is down, notify-send is a
-# silent no-op rather than a daemon start, and there is no fallback left.
+# The notification bus name. noctalia ships NO D-Bus service file, so nothing
+# here is activatable for that name: if the shell is down, notify-send is a
+# silent no-op rather than a daemon start, and there is no fallback.
 if busctl --user --no-pager status org.freedesktop.Notifications >/dev/null 2>&1; then
     ok "org.freedesktop.Notifications has an owner"
 else
     no "nothing owns org.freedesktop.Notifications -- notify-send will do nothing"
 fi
 
-# THE TRAY IS LOAD-BEARING FOR THE KEYRING, which is not obvious and is why it
-# is checked here rather than left to the bar.
-#
+# THE TRAY IS LOAD-BEARING FOR THE KEYRING.
 # /usr/share/sway/config.d/95-xdg-desktop-autostart.conf runs
 # `wait-sni-ready && systemctl --user start sway-xdg-autostart.target`, and that
-# helper gives up after 25s with a non-zero exit if no StatusNotifier HOST has
-# appeared -- which kills the `&&`. waybar used to be that host; noctalia is now
-# (asserted against the binary in 18-noctalia-shell.sh). If it ever stops being
-# one, the symptom is not a missing tray, it is gnome-keyring's three autostart
-# entries never running.
+# helper exits non-zero after 25s if no StatusNotifier HOST appeared, killing the
+# `&&`. If noctalia ever stops being one, the symptom is not a missing tray, it
+# is gnome-keyring's three autostart entries never running.
 systemctl --user is-active --quiet sway-xdg-autostart.target \
     && ok "sway-xdg-autostart.target active (the SNI host was found)" \
     || no "sway-xdg-autostart.target inactive -- wait-sni-ready timed out; keyring autostart did not run"
@@ -291,13 +259,8 @@ pgrep -x waybar >/dev/null \
     && no "waybar is RUNNING -- /etc/sway/config.d/90-bar.conf did not retire Fedora's bar; there are two" \
     || ok "waybar correctly idle (installed, retired by /etc/sway/config.d/90-bar.conf)"
 
-# foot is still in this list on purpose. It is no longer bound to anything, but
-# it is kept installed as a fallback: ghostty is GPU-accelerated and this is an
-# NVIDIA box, so losing it would mean no terminal at all.
-#
-# rofi, grimshot and swaylock are NOT in this list any more. Two of the three
-# cannot leave the image, but asserting their presence here would read as an
-# endorsement of tools nothing calls.
+# foot is here on purpose: unbound, but kept as a fallback, because ghostty is
+# GPU-accelerated on an NVIDIA box and losing it would mean no terminal at all.
 for b in ghostty foot Thunar wl-copy blueman-manager noctalia; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
@@ -316,19 +279,11 @@ else
 fi
 
 
-# blueman's applet is INSTALLED and deliberately not autostarted: the shell
-# draws bluetooth state itself, in its own icon font, and blueman's tray icon is
+# blueman's applet is installed and deliberately not autostarted: the shell
+# draws bluetooth state in its own icon font, and blueman's tray icon is
 # full-colour artwork no stylesheet here can reach. Hidden=true in
-# ~/.config/autostart overrides /etc/xdg/autostart by basename. If it comes back,
-# the symptom is a duplicate icon in the tray rather than an error.
-#
-# nm-applet USED TO BE IN THIS LOOP and is not any more, because
-# network-manager-applet is uninstalled -- so a Hidden=true override for it would
-# be shadowing an /etc/xdg/autostart entry that no longer exists. What made the
-# package removable is that noctalia registers as a real NetworkManager
-# SecretAgent, which nm-applet was silently the only provider of; that is
-# asserted against the binary in 18-noctalia-shell.sh, and the consequence is
-# checked below rather than here.
+# ~/.config/autostart overrides /etc/xdg/autostart by basename; if it comes back
+# the symptom is a duplicate tray icon rather than an error.
 if grep -qs '^Hidden=true' "$HOME/.config/autostart/blueman.desktop"; then
     ok "blueman applet suppressed (Hidden=true)"
 else
@@ -338,19 +293,15 @@ rpm -q --quiet network-manager-applet \
     && meh "network-manager-applet is installed again -- it will race noctalia as NM's secret agent" \
     || ok "network-manager-applet gone (noctalia is the NM secret agent)"
 
-# Hack Nerd Font Mono is vendored from the upstream release by
-# 10-sway-install.sh rather than installed as an RPM, since no repo this image
-# trusts carries a patched Hack. If it goes missing, text silently falls back to
-# Noto while icons keep working off the base image's symbols-only nerd-fonts
+# Vendored by 10-sway-install.sh, not an RPM. If it goes missing, text falls
+# back to Noto while icons keep working off the base image's symbols-only
 # package -- half-broken in a way that is easy not to notice.
 fc-list -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \
     || no "Hack Nerd Font Mono MISSING -- bar, terminal and launcher fall back to Noto"
 
-# 10-sway-install.sh rewrites `set $term foot` in /etc/sway/config. sway expands
-# that variable at parse time into both `bindsym $mod+Return exec $term` and
-# rofi's `-terminal`, so if the rewrite ever silently no-ops -- an upstream
-# reformat of that line would do it -- $mod+Return quietly reverts to foot. The
-# second consumer is gone with rofi; the binding is not.
+# sway expands `set` at parse time, so if 10-sway-install.sh's rewrite ever
+# silently no-ops -- an upstream reformat of that line would do it --
+# $mod+Return quietly reverts to foot.
 grep -q '^set \$term ghostty$' /etc/sway/config \
     && ok "sway \$term is ghostty" \
     || no "sway \$term is not ghostty -- \$mod+Return will open foot"
@@ -358,25 +309,17 @@ infocmp xterm-ghostty >/dev/null 2>&1 && ok "xterm-ghostty terminfo present" \
     || no "xterm-ghostty terminfo MISSING -- ssh and curses apps will misbehave"
 
 head_ "Shell (noctalia)"
-# THE MOST IMPORTANT SECTION IN THIS FILE, and it inherits that title from the
-# locker section it replaces.
+# THE MOST IMPORTANT SECTION IN THIS FILE. Nine subsystems sit behind one
+# process, with no fallback for any of them.
 #
-# noctalia is the bar, the launcher, the notification daemon, the volume and
-# brightness OSD, the clipboard history, the screenshot tool, the idle daemon,
-# the lock screen and the only authentication agent on this machine -- nine
-# subsystems behind one process. There is no mako left to take the notification
-# bus name, no swaync to fall back to, nothing bound to swayidle, and nothing
-# else that registers a polkit agent.
+# The failure mode is silence: the unit exits at startup and there is no bar, no
+# notifications, no OSD, no lock, and pkexec hangs instead of erroring.
+# $mod+Return still opens a terminal -- that binding is in /etc/sway/config and
+# does not go through the shell -- which is what makes it recoverable from
+# inside the session.
 #
-# The failure mode is the locker's, scaled up: the unit exits at startup and the
-# only symptom is silence. No bar, no notifications, no OSD, no lock, and pkexec
-# hangs instead of erroring. $mod+Return still opens a terminal -- that binding
-# is in /etc/sway/config and does not go through the shell -- which is the one
-# thing that makes this recoverable from inside the session.
-#
-# And nothing at build time has ever seen the config this session is running:
-# dotfiles/ is excluded from the build context. `just check-shell-config` is the
-# other half of this section.
+# Nothing at build time has seen the config this session is running: dotfiles/ is
+# excluded from the build context. `just check-shell-config` is the other half.
 noctalia_fail_at_start=$fail
 
 rpm -q --quiet noctalia && ok "noctalia installed ($(rpm -q noctalia 2>/dev/null))" \
@@ -422,14 +365,8 @@ else
 fi
 
 # THE VALIDATOR, run against the config this session actually merged.
-#
-# This is the thing the README's load-bearing section says does not exist for
-# anything in the login or lock path: hypridle connected to Wayland before
-# parsing anything and hyprlock had no validate-only mode, so one typo was a
-# dead locker with silence as the only symptom. `noctalia config validate` parses
-# headlessly, reports file:line:column and exits 1 -- 18-noctalia-shell.sh proves
-# that at build time against a known-good and a known-bad file, which is what
-# makes this run meaningful.
+# 18-noctalia-shell.sh proves at build time that it works in both directions,
+# which is what makes this run meaningful.
 if command -v noctalia >/dev/null; then
     if noctalia_validate=$(noctalia config validate 2>&1); then
         if [[ -n "$noctalia_validate" ]]; then
@@ -444,25 +381,22 @@ if command -v noctalia >/dev/null; then
     fi
 fi
 
-# THE GUI SHADOW, which is this shell's answer to the dconf-vs-settings.ini trap
-# in the Theming section below, and just as silent.
-#
-# noctalia merges built-in defaults, then ~/.config/noctalia/*.toml, then
-# ~/.local/state/noctalia/settings.toml -- and the last of those is written by
-# clicking in the settings window and WINS. So a value tuned in the GUI silently
-# outranks the repo, is not version-controlled, and cannot be found by reading
-# dotfiles/. Deleting the file hands control back.
+# THE GUI SHADOW, the same shape as the dconf-vs-settings.ini trap below and
+# just as silent. noctalia merges defaults, then ~/.config/noctalia/*.toml, then
+# ~/.local/state/noctalia/settings.toml -- and the last is written by clicking in
+# the settings window and WINS. A value tuned in the GUI outranks the repo, is
+# not version-controlled, and cannot be found by reading dotfiles/. Deleting the
+# file hands control back.
 if [ -s "$HOME/.local/state/noctalia/settings.toml" ]; then
     meh "settings.toml exists and OUTRANKS dotfiles/noctalia -- rm ~/.local/state/noctalia/settings.toml to hand control back"
 else
     ok "no GUI settings override (dotfiles/noctalia is what is running)"
 fi
 
-# THE PALETTE, asserted equal across the desktop and the login screen.
-#
-# The sixteen roles exist twice on purpose -- greeter.toml explains why sync is
-# not used -- and nothing at runtime notices if they drift. The login screen just
-# stops matching, which reads as a rendering difference rather than a bug.
+# THE PALETTE, asserted equal across desktop and login screen. The sixteen roles
+# exist twice on purpose (greeter.toml explains why sync is not used) and nothing
+# at runtime notices if they drift -- the login screen just stops matching, which
+# reads as a rendering difference rather than a bug.
 noctalia_palette="$HOME/.config/noctalia/palettes/bazzite-grey.json"
 noctalia_greeter_toml=/usr/share/factory/var/lib/noctalia-greeter/greeter.toml
 if [ -r "$noctalia_palette" ] && [ -r "$noctalia_greeter_toml" ]; then
@@ -486,13 +420,10 @@ else
     meh "cannot compare palettes (run just link-dotfiles?)"
 fi
 
-# THE LAYER-SHELL NAMESPACES, checked against what the compositor actually did.
-#
-# 25-effects.conf blurs the shell's surfaces by namespace, and `layer_effects`
-# takes a LITERAL string -- a wrong one is not an error, it is a panel that is
-# quietly not frosted, and 25-effects.conf:143-149 says so at length. sway-ipc
-# reports the effects it applied per surface, so this is the one check that can
-# tell "the rule matched" from "the rule is a typo".
+# THE LAYER-SHELL NAMESPACES, against what the compositor actually did.
+# `layer_effects` takes a LITERAL string, so a wrong one is not an error, it is a
+# panel quietly not frosted. sway-ipc reports the effects applied per surface, so
+# this is the one check that tells "the rule matched" from "the rule is a typo".
 if command -v swaymsg >/dev/null && [ -n "${SWAYSOCK:-}" ]; then
     noctalia_surfaces=$(swaymsg -t get_outputs -r 2>/dev/null | python3 -c '
 import json, sys
@@ -543,12 +474,10 @@ else
     meh "bazzite-sway plugin not linked (run just link-dotfiles?)"
 fi
 
-# The thresholds, which exist in two places for two consumers: [system.monitor]
-# in 50-services.toml is what the control centre colours against, and the
-# constants at the top of hardware.luau are what the bar glyph does. Two copies
-# of a threshold that disagree are worse than one copy in the wrong place, and
-# nothing at runtime would notice -- the bar would go bright at 80% while the
-# panel still called it fine.
+# The thresholds exist in two places for two consumers: [system.monitor] in
+# 50-services.toml for the control centre, the constants in hardware.luau for the
+# bar glyph. Nothing at runtime would notice a disagreement -- the bar would go
+# bright at 80% while the panel still called it fine.
 noctalia_luau="$noctalia_plugin/hardware.luau"
 noctalia_svc="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/50-services.toml"
 if [ -r "$noctalia_luau" ] && [ -r "$noctalia_svc" ]; then
@@ -604,13 +533,10 @@ pgrep -x swayidle >/dev/null \
     && no "swayidle is running -- two idle daemons, both locking the screen" \
     || ok "swayidle correctly idle"
 
-# Stale symlinks, which are not merely untidy in one directory.
-#
-# just link-dotfiles now prunes these, so a survivor means it has not been re-run
-# since the shell swap deleted twenty-one dotfiles. In ~/.config/sway/config.d/ a
-# dangling link is worse than clutter: layered-include globs the directory and
-# matches the link by name, so it SHADOWS the /etc or /usr/share drop-in of the
-# same name and sway says nothing.
+# Stale symlinks, not merely untidy. `just link-dotfiles` prunes these, so a
+# survivor means it has not been re-run. In ~/.config/sway/config.d/ a dangling
+# link SHADOWS the /etc or /usr/share drop-in of the same name -- layered-include
+# globs the directory and matches by name -- and sway says nothing.
 noctalia_stale=$(find "$HOME/.config" -xtype l 2>/dev/null | wc -l)
 if [ "$noctalia_stale" -eq 0 ]; then
     ok "no dangling symlinks in ~/.config"
@@ -639,29 +565,23 @@ for f in gtk-3.0/gtk.css gtk-4.0/gtk.css; do
         || no "$f NOT linked -- GTK keeps Adwaita's blue accent (run: just link-dotfiles)"
 done
 
-# THE ONE THAT BITES SILENTLY. On Wayland GTK takes the theme, icon theme,
-# cursor theme and UI font from the XDG desktop portal, which answers them out
-# of org.gnome.desktop.interface in dconf -- and the portal WINS over
-# gtk-3.0/settings.ini for every key it serves. A stale dconf value therefore
-# overrides this repo with nothing logged anywhere.
+# THE ONE THAT BITES SILENTLY. On Wayland GTK takes theme, icon theme, cursor
+# theme and UI font from the XDG portal, which answers from
+# org.gnome.desktop.interface in dconf -- and the portal WINS over settings.ini
+# for every key it serves, with nothing logged.
 #
-# It matters most for gtk-theme. dotfiles/gtk-3.0/gtk.css redefines libadwaita's
-# colour names, and the GTK3 legacy names a widget actually asks for
-# (theme_bg_color and the rest) are aliases of those only inside adw-gtk3-dark.
-# Under stock Adwaita the stylesheet loads, parses clean, and half of it lands.
+# It matters most for gtk-theme: gtk-3.0/gtk.css redefines libadwaita's colour
+# names, and the GTK3 legacy names a widget actually asks for are aliases of
+# those only inside adw-gtk3-dark. Under stock Adwaita the stylesheet loads,
+# parses clean, and half of it lands.
 #
-# The three non-default values here are Plasma-era leftovers from kde-gtk-config,
-# which wrote into dconf where 30-kde-remove.sh could not follow.
+# THREE STATES, not two -- where the value comes from decides whether anything
+# is left to clean up:
 #
-# Three states, not two. The effective value is what GTK uses, but WHERE it
-# comes from decides whether anything is left to clean up:
-#
-#   effective wrong                  FAIL. The desktop is not themed.
-#   effective right, written in dconf WARN. Correct, but shadowing the image
-#                                    default with a copy of it -- `dconf reset`
-#                                    hands the key back to the override and is
-#                                    the state to end at.
-#   effective right, dconf empty     PASS. Coming from the image.
+#   effective wrong                   FAIL. The desktop is not themed.
+#   effective right, written in dconf WARN. Shadowing the image default with a
+#                                     copy of it; `dconf reset` hands it back.
+#   effective right, dconf empty      PASS. Coming from the image.
 while read -r key want; do
     have=$(gsettings get org.gnome.desktop.interface "$key" 2>/dev/null | tr -d "'")
     user=$(dconf read "/org/gnome/desktop/interface/$key" 2>/dev/null | tr -d "'")
@@ -682,12 +602,10 @@ monospace-font-name Hack Nerd Font Mono 10
 KEYS
 
 # The tripwire under dotfiles/gtk-4.0/gtk.css. libadwaita deprecated
-# @define-color in 1.6 for CSS custom properties, but through 1.9.3 the
-# properties are still SOURCED from the old names -- the library ships
-# `--window-bg-color: @window_bg_color` in its own stylesheet -- which is the
-# only reason one @define-color block themes GTK3, plain GTK4 and libadwaita
-# alike. If a release stops doing that, the GTK4 file silently themes nothing
-# and every colour there has to be restated as a :root variable.
+# @define-color in 1.6, but through 1.9.3 the CSS properties are still SOURCED
+# from the old names, which is the only reason one @define-color block themes
+# GTK3, plain GTK4 and libadwaita alike. If a release stops doing that, the GTK4
+# file silently themes nothing and every colour must be restated as a :root var.
 if gresource extract /usr/lib64/libadwaita-1.so.0 /org/gnome/Adwaita/styles/gtk.css 2>/dev/null \
      | grep -q -- '--window-bg-color:[[:space:]]*@window_bg_color'; then
     ok "libadwaita still sources its CSS variables from @define-color"
