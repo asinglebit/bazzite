@@ -198,7 +198,7 @@ monitors           = []
     lock_keys          = true
     bluetooth          = true
     wifi               = true
-    # This is a desktop: no keyboard backlight, and one layout.
+    # No keyboard backlight on this desktop; the layout is on the bar instead.
     keyboard_backlight = false
     keyboard_layout    = false
     power_profile      = true

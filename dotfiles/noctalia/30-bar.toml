@@ -102,16 +102,15 @@ order = [ "default" ]
     # them.
     scale = 0.75
 
-    start  = [ "workspaces", "swaymode", "scratchpad" ]
+    start  = [ "workspaces" ]
     center = [ "active_window" ]
     end    = [
         "privacy",
         "audio_visualizer",
-        "failedunits",
         "tray",
         "screenshot",
         "color_picker",
-        "hardware",
+        "keyboard_layout",
         "output_volume",
         "network",
         "bluetooth",
@@ -119,23 +118,18 @@ order = [ "default" ]
         "clock",
     ]
 
-    # THE THREE ARRIVALS, and where they sit relative to the pill.
+    # WHAT SITS OUTSIDE THE PILL, and why.
     #
-    # screenshot and color_picker are the first widgets on this bar that DO
-    # something rather than report something, which is the division the block
-    # below is built on. So they go outside the capsule, next to the tray, with
-    # the reporting glyphs left as one uninterrupted run -- putting either of them
-    # inside would break capsule_group's contiguity as well as the argument.
+    # screenshot, color_picker and keyboard_layout are the widgets on this bar
+    # that DO something rather than report something. So they go outside the
+    # capsule, next to the tray, with the reporting glyphs left as one
+    # uninterrupted run -- putting any of them inside would break
+    # capsule_group's contiguity as well as the argument.
     #
     # audio_visualizer leads the group instead, second only to privacy and well
     # clear of the pill. It is the one thing here with no state to read -- the
     # output meter drawn as motion -- so it wants the end of the row furthest from
     # the glyphs that do, and the clock keeps the right edge it has always had.
-    #
-    # failedunits sits third for the same reason it sat second before: it and
-    # privacy are the two that are INVISIBLE until they have something to say, so
-    # they cost no width in the ordinary case and both want to be where the eye
-    # is not already busy.
 
     # The status pill.
     #
@@ -144,9 +138,9 @@ order = [ "default" ]
     # surface rather than five characters adrift in the blur. noctalia has the
     # concept, so the CSS is gone and the intent is a list.
     #
-    # Still five, still adjacent in `end` above. The capsule is drawn as one run,
+    # Four, still adjacent in `end` above. The capsule is drawn as one run,
     # so anything inserted between two of these names splits the pill in half.
-    capsule_group     = [ "hardware", "output_volume", "network", "bluetooth", "notifications" ]
+    capsule_group     = [ "output_volume", "network", "bluetooth", "notifications" ]
     capsule           = true
     capsule_fill      = "surface_variant"
     capsule_opacity   = 0.35
@@ -276,16 +270,21 @@ type = "screenshot"
 [widget.color_picker]
 type = "oldirtty/color_picker:widget"
 
-# Hardware: cpu, memory and package temperature as ONE glyph, with the figures
-# in the tooltip and the alert in the glyph's colour. A Luau entry rather than
-# three `sysmon` widgets, because the three text labels came off this bar
-# deliberately and are not coming back -- what mattered was the alert, not the
-# reading. The thresholds it colours against are in 50-services.toml under
-# [system.monitor], so the control centre and this widget agree.
-# Sway's binding-mode indicator and the scratchpad count. Neither has a
-# built-in equivalent -- noctalia's keyboard_layout widget is a different thing,
-# and nothing counts the scratchpad -- so both are entries in the plugin. Both
-# hide themselves when they have nothing to say.
+# The active keyboard layout. 30-input.conf gives sway `us,ru` and cycles them
+# with Alt+Shift; this glyph is the only thing on screen that says which is live.
+#
+# `short` draws "US"; `full` draws "English (US)", which a 24px strip at
+# scale 0.75 has no room for. noctalia emits no default for it, so it is pinned.
+[widget.keyboard_layout]
+type    = "keyboard_layout"
+display = "short"
+
+# DEFINED BUT NOT PLACED. None of the four below is in `start` or `end` above --
+# the bar matches what the settings GUI had. Adding one back is a single line.
+
+# Sway's binding-mode indicator and the scratchpad count. waybar had
+# `sway/mode`; nothing counts the scratchpad -- so both are entries in the
+# plugin. Both hide themselves when they have nothing to say.
 [widget.swaymode]
 type = "asinglebit/bazzite-sway:swaymode"
 
@@ -297,6 +296,12 @@ type = "asinglebit/bazzite-sway:scratchpad"
 [widget.failedunits]
 type = "asinglebit/bazzite-sway:failedunits"
 
+# Hardware: cpu, memory and package temperature as ONE glyph, with the figures
+# in the tooltip and the alert in the glyph's colour. A Luau entry rather than
+# three `sysmon` widgets, because the three text labels came off this bar
+# deliberately and are not coming back -- what mattered was the alert, not the
+# reading. The thresholds it colours against are in 50-services.toml under
+# [system.monitor], so the control centre and this widget agree.
 [widget.hardware]
 type = "asinglebit/bazzite-sway:hardware"
 

@@ -99,7 +99,7 @@ just check-shell-config                # optional: validate the config as commit
 `link-dotfiles` is idempotent, backs up anything in the way, and prunes symlinks this repo no
 longer ships. The desktop works without it — the image retires the Fedora sway drop-ins in `/etc`,
 so a first login gets a working bar and launcher on stock defaults. What it adds is the palette,
-the layout, and the plugins.
+the monitor layout, and the plugins.
 
 `greeter-avatar` cannot be part of the image: the greeter reads the user's `IconFile` from
 AccountsService, which is per-user state under `/var`. Without it the login screen draws its stock
@@ -128,7 +128,7 @@ desktop with a bare shell.
 | `build_files/45-bazzite-user-setup.sh` | Patches a bash syntax error in upstream's `/usr/libexec/bazzite-user-setup`, which fails at every login otherwise |
 | `build_files/50-signing.sh` | cosign key, `registries.d` entry, `policy.json` block. No-ops on a local build |
 | `system_files/` | Files copied verbatim into the image |
-| `dotfiles/` | Per-user **desktop** config: outputs, appearance, effects, wallpaper, GTK theming, and `noctalia/`. Symlinked into `~/.config`; never enters the image |
+| `dotfiles/` | Per-user **desktop** config: outputs, input, appearance, effects, wallpaper, GTK theming, and `noctalia/`. Symlinked into `~/.config`; never enters the image |
 | `verify.sh` | Post-boot checks: the assertions that need a running session, a GPU and a seat, which the build cannot make |
 | `.github/workflows/build.yml` | Nightly rebuild: build, rechunk, push, sign |
 | `cosign.pub` | Public half of the CI key. `cosign.key` lives only in the `SIGNING_SECRET` Actions secret |
