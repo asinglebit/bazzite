@@ -7,6 +7,7 @@ blur, rounded corners and shadows — instead of KDE Plasma, with Bazzite's gami
 intact: ogc kernel, patched mesa/Xwayland/bluez/wireplumber, Steam, gamescope, MangoHud, sched_ext,
 `ujust`.
 
+
 Everything that is not the compositor is [noctalia][noctalia]: bar, launcher, notifications and
 control centre, session menu, lock screen, OSD, clipboard, screenshots and the polkit agent, from
 one TOML directory and one palette. `noctalia-greeter` is the login screen. The look is flat
