@@ -64,6 +64,40 @@ just update         # stage; applies at the next reboot
 just update-now     # stage and reboot straight into it
 ```
 
+### Updating without this repo
+
+The update recipes are one-line wrappers, and bootc stores the image ref *inside the deployment*,
+so a machine that already follows the published tag needs no checkout to keep current:
+
+| | |
+| --- | --- |
+| `just update-check` | `sudo bootc upgrade --check` |
+| `just update` | `sudo bootc upgrade` |
+| `just update-now` | `sudo bootc upgrade --apply` |
+| `just rollback` | `sudo bootc rollback --apply` |
+| `just status` | `bootc status` |
+| `just switch-remote sway` | `sudo bootc switch ostree-image-signed:docker://ghcr.io/asinglebit/bazzite-sway:sway` |
+| `just bootstrap-remote sway` | `sudo bootc switch ghcr.io/asinglebit/bazzite-sway:sway` |
+
+The catch is that `bootc upgrade` re-resolves whichever ref the deployment already carries, so it
+is not enough on a machine that got here through `just switch`. That one follows
+`ostree-unverified-image:containers-storage:localhost/bazzite-sway:sway` — its own podman
+storage — and will never see a CI build however many times the workflow runs. `bootc status` says
+which; if the ref reads `containers-storage`, the move onto GHCR is a one-time `bootc switch`,
+after which plain `bootc upgrade` is enough forever.
+
+Take that first switch **unverified**, and deliberately so. A locally built machine has no
+`asinglebit` rule in `policy.json` and no `/etc/pki/containers/asinglebit.pub`, because a local
+build passes no registry and `50-signing.sh` skips the trust setup — so the `ostree-image-signed:`
+ref matches nothing and falls through to the `""` catch-all, which is `insecureAcceptAnything`. It
+would pull unverified while *looking* verified, the same trap the next section is about. Use
+`bootstrap-remote`, reboot, confirm the pubkey landed, then move to `switch-remote`.
+
+Both prerequisites above still apply — a published image to upgrade to ([Running the CI
+yourself](#running-the-ci-yourself)) and a readable package. To keep that package private rather
+than public, put a pull secret at `/etc/ostree/auth.json`: bootc reads that, not a user's `podman
+login`.
+
 ### Confirming verification is actually on
 
 The first two checks can both pass while verification silently falls through to the catch-all. The
