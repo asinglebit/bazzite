@@ -212,18 +212,10 @@ vulkaninfo --summary 2>/dev/null | grep -q 'NVIDIA' && ok "Vulkan sees the NVIDI
 pgrep -x Xwayland >/dev/null && ok "Xwayland running" || meh "Xwayland not running (no X11 client started yet)"
 
 head_ "Workspaces (a block of ten per screen)"
-# 10-outputs.conf used to spell this layout out as ten `workspace N output`
-# lines. It is derived at runtime now -- every screen owns N*10+1..N*10+10 by
-# its left-to-right position -- so there is nothing left on disk that states the
-# intended layout, and these checks are the only written form of it.
+# The layout is no longer written down anywhere, so these checks are the only statement of it.
 ws_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/sway"
 
-# LINKED AND EXECUTABLE, BOTH HELPERS. sway runs each by path -- xwayland-
-# primary.sh from an exec_always, workspace-block.sh from twenty bindings -- and
-# a present-but-not-+x file fails inside sway's `sh -c` with one line in the log
-# and NOTHING on screen: the keys simply stop working. git tracks the mode here
-# (core.fileMode is true), so this is really asking whether the repo's copy kept
-# it. xwayland-primary.sh rides along because it had no check at all.
+# A helper that is not executable fails inside sway's `sh -c` with nothing on screen.
 for h in workspace-block.sh xwayland-primary.sh; do
     if [ ! -e "$ws_cfg/$h" ]; then
         no "$h missing from ~/.config/sway -- run: just link-dotfiles"
@@ -236,12 +228,7 @@ for h in workspace-block.sh xwayland-primary.sh; do
     fi
 done
 
-# NO SURVIVING PINS IN ANYTHING SWAY ACTUALLY READ. A leftover `workspace N
-# output` is not a parse error, it is one number nailed to one monitor while its
-# nine neighbours follow focus -- sway consults the pins before it falls back to
-# the focused screen. Read the file list out of layered-include's generated
-# include list rather than globbing config.d/, because that list is the exact
-# set this session included, shadowing and all.
+# One leftover pin would nail one number to one monitor while the other nine follow focus.
 ws_read=$(awk -F"'" '/^include /{print $2}' /run/user/"$(id -u)"/sway/layered-include-*.conf 2>/dev/null)
 if [ -z "$ws_read" ]; then
     meh "no layered-include list in /run/user/$(id -u)/sway -- cannot tell which drop-ins this session read"
@@ -253,12 +240,7 @@ else
         || no "workspace N output pins survive -- those numbers ignore the blocks: $(echo $ws_pins | tr '\n' ' ')"
 fi
 
-# TWENTY BINDINGS, COUNTED, EVERY ONE --no-warn. Upstream binds all twenty in
-# /etc/sway/config, so each is an overwrite and a bare `bindsym` raises the error
-# bar. The `pgrep -x swaynag` check in the compositor section is the behavioural
-# half of this -- but only until the bar is DISMISSED: clicking it exits swaynag,
-# pgrep goes quiet, and the config still warns on every reload. This half
-# survives that, and names the count.
+# The swaynag check further up stops working once the bar is dismissed; this one does not.
 ws_conf="$ws_cfg/config.d/40-bindings.conf"
 if [ ! -r "$ws_conf" ]; then
     no "40-bindings.conf not readable at $ws_conf -- run: just link-dotfiles"
@@ -275,15 +257,7 @@ else
 fi
 
 if [ -x "$ws_cfg/workspace-block.sh" ] && [ -n "${SWAYSOCK:-}" ]; then
-    # THE RULE EXISTS TWICE, so assert the two copies agree -- the same shape as
-    # the palette and hardware-threshold checks further down. The helper's copy
-    # is the one the keys use; this one is the one that can say what the keys
-    # SHOULD do, and if they disagree everything below is testing a scheme that
-    # is not running.
-    #
-    # get_outputs does NOT reply left-to-right -- on this desk the right-hand
-    # screen comes first -- so the sort is the whole rule. rect.x is in logical
-    # coordinates, the same numbers as `position` in 10-outputs.conf.
+    # The sorting rule lives here as well as in the helper, so check the two agree.
     ws_calc=$(swaymsg -t get_outputs -r 2>/dev/null | jq -r '
         [ .[] | select(.active) ] | sort_by(.rect.x, .rect.y, .name)
         | (map(.focused) | index(true)) as $i
@@ -297,11 +271,7 @@ if [ -x "$ws_cfg/workspace-block.sh" ] && [ -n "${SWAYSOCK:-}" ]; then
         ok "\$mod+1 on the focused screen is workspace $ws_say (its block is $ws_say-$((ws_say + 9)))"
     fi
 
-    # AND WHAT THE COMPOSITOR ACTUALLY HAS. A WARNING, NOT A FAILURE, for two
-    # ordinary reasons: a workspace made before this change keeps its old number
-    # until it empties, and unplugging a screen migrates its workspaces onto the
-    # survivor, where being out of block is correct rather than broken. Pressing
-    # that number on the owning screen drags it home, and so does a reload.
+    # A warning, not a failure: unplugging a screen strands its workspaces on the survivor.
     ws_stray=$(swaymsg -t get_outputs -r 2>/dev/null | jq -r --argjson w "$(swaymsg -t get_workspaces -r 2>/dev/null)" '
         ([ .[] | select(.active) ] | sort_by(.rect.x, .rect.y, .name)) as $o
         | [ $w[] | select(.num >= 1 and .num <= ($o | length) * 10)
@@ -313,11 +283,7 @@ if [ -x "$ws_cfg/workspace-block.sh" ] && [ -n "${SWAYSOCK:-}" ]; then
         || meh "workspace on the wrong screen: $ws_stray (swaymsg reload repairs)"
 fi
 
-# THE BAR'S HALF OF THE SAME DECISION. With twenty numbers in play a bar that
-# lists them all draws both screens' blocks on both screens, ten of them
-# unreachable from that keyboard position. Checked in the LINKED file, so the
-# GUI state override warned about further down can still beat it -- these two
-# are a pair.
+# Checked in the linked file, so the GUI state override warned about below can still beat it.
 ws_bar="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/30-bar.toml"
 grep -qE '^show_all_outputs[[:space:]]*=[[:space:]]*false' "$ws_bar" 2>/dev/null \
     && ok "bar lists only its own screen's workspaces" \

@@ -217,15 +217,9 @@ the image (`**.md`, `dotfiles/**` and `verify.sh` are ignored), on pull requests
   deleting it hands control back.
 - **A rollback restores the image, not `dotfiles/`.** The two roll back separately and neither
   knows about the other.
-- **`$mod+1`..`0` is per-screen, not per-workspace.** Every screen owns a private block of ten
-  workspaces by its left-to-right position — 1–10 on the left screen, 11–20 on the right — and the
-  number keys resolve inside the block of whichever screen has focus, so `$mod+1` means "the first
-  workspace of *this* screen" and never moves focus to the other monitor.
-  `dotfiles/sway/workspace-block.sh` derives the block from `swaymsg -t get_outputs` at press time;
-  `10-outputs.conf` pins no workspace to any monitor. A workspace found on the wrong screen is
-  dragged home by pressing its number, or by `swaymsg reload`. Unplugging a screen strands its
-  block on the survivor, where ten keys cannot reach twenty workspaces; re-plugging and one
-  keypress restores it. `verify.sh` reports strays as warnings.
+- **`$mod+1`..`0` is per-screen.** Every screen owns ten workspaces by its left-to-right position —
+  1–10 on the left, 11–20 on the right — so a number key never moves focus to the other monitor.
+  Unplugging a screen strands its ten on the survivor until it is back; `verify.sh` warns about it.
 - **No HDR** (`color-management-v1` is sway 1.12; F44 has 1.11) and **no Vulkan renderer**
   (SwayFX's `fx_renderer` is GLES2-only). VRR does work.
 - **No screen recording** — noctalia's capture is stills. **Screen sharing is whole-output only**;
