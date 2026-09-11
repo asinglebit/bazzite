@@ -1,11 +1,5 @@
-# Sourced by start-sway(1) under `set -o allexport`, so plain assignments are
-# exported into sway's environment. Driver and compositor variables
-# (SWAY_EXTRA_ARGS, WLR_*) belong in /etc/sway/environment instead -- sway will
-# not start on this GPU without them, so they are part of the image.
+# Plain assignments here are exported into sway's environment; driver variables go in /etc/sway/environment.
 
-# Qt picks its platform theme from XDG_CURRENT_DESKTOP, which is "sway", so it
-# matches nothing and falls back to a light palette. The portal backend makes Qt
-# follow org.freedesktop.appearance, the same signal GTK4, Firefox and Electron
-# use. Not gtk3: that flattens Base onto Window, so text inputs and list views
-# lose all contrast against the dialog.
+# Qt has no theme for "sway" and would go light, so send it to the portal like GTK4 and Firefox.
+# Not gtk3, which flattens text inputs into the dialog background.
 QT_QPA_PLATFORMTHEME=xdgdesktopportal

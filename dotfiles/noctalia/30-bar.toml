@@ -1,6 +1,5 @@
-# The bar REPORTS state; the control centre CHANGES it. That division is why
-# every widget on the right is a single glyph with no text beside it, and why
-# nearly all of them share one left-click target.
+# The bar reports state and the control centre changes it, which is why nearly every
+# glyph on the right just opens the control centre.
 
 [bar]
 order = [ "default" ]
@@ -9,8 +8,7 @@ order = [ "default" ]
     position = "top"
     layer    = "top"
 
-    # Full width, hard against the top edge, square. 25-effects.conf gives this
-    # bar's namespace corner_radius 0 for the same reason.
+    # Full width against the top edge, so square corners; 25-effects.conf matches this.
     radius               = 0
     radius_top_left      = 0
     radius_top_right     = 0
@@ -29,33 +27,21 @@ order = [ "default" ]
     font_scale     = 1.01
     font_weight    = 500
 
-    # A LATIN face here -- the Sinhala coverage the family is named for is not
-    # the part that renders. It sets narrower and more even than the shell's
-    # Noto Sans CJK SC, which is what lets font_scale sit above 1.0 in a bar
-    # scaled to 0.75. It has no Cyrillic; layout names are Latin, so that only
-    # matters if custom_labels are ever set to Cyrillic strings.
+    # Picked for its Latin shapes, which are narrower than the shell font and fit this thin bar.
     font_family    = "Noto Sans Sinhala"
 
-    # Not decoration: SwayFX blurs what is BEHIND a translucent surface, so an
-    # opaque bar does not disable the blur, it hides it and still pays for it.
+    # Needed for the blur to show: an opaque bar still pays for the blur behind it, but hides it.
     background_opacity = 0.6
 
-    # A choice, not a duplicate avoided: SwayFX's `shadows enable` applies to
-    # views, and a layer surface gets only what its layer_effects line asks for.
+    # A choice, not a duplicate: the compositor's shadows never reach a bar anyway.
     shadow          = false
     contact_shadow  = false
     border          = "outline"
     border_width    = 0.0
     hover_highlight = true
 
-    # NO [bar.default.monitor.*] TABLE, DELIBERATELY. noctalia keys per-monitor
-    # overrides by CONNECTOR name, and this desktop matches outputs by EDID
-    # precisely because connectors move. If the bar is wrong it is wrong on both
-    # monitors, and the fix is this `scale` or ui_scale in 10-shell.toml -- one
-    # number, not a table of connectors.
-    #
-    # 0.75 multiplies with ui_scale 0.9, landing the chrome near two thirds of
-    # noctalia's own sizing, which is what fits the 24px strip.
+    # No per-monitor table on purpose, because noctalia keys those by connector name and
+    # connectors move; if the bar looks wrong, change this one number instead.
     scale = 0.75
 
     start  = [ "workspaces" ]
@@ -74,10 +60,7 @@ order = [ "default" ]
         "clock",
     ]
 
-    # screenshot, color_picker and keyboard_layout are the widgets that DO
-    # something rather than report something, so they sit outside the capsule
-    # next to the tray. The capsule is drawn as one run, so anything inserted
-    # between two of its names splits the pill in half.
+    # The widgets that do something sit outside the capsule, and anything inserted into it splits the pill.
     capsule_group     = [ "output_volume", "network", "bluetooth", "notifications" ]
     capsule           = true
     capsule_fill      = "surface_variant"
@@ -86,23 +69,17 @@ order = [ "default" ]
     capsule_radius    = 9.0
     capsule_thickness = 0.76
 
-# A widget's NAME is its id and is what the bar lists; `type` is what it is.
-#
-# Every widget defaults to middle = "settings-open-widget", so a middle-click
-# opens a settings page unless bound to something or to "none".
-#
-# PLUGIN WIDGETS CANNOT TAKE [widget.<name>.actions] -- it is not a binding that
-# fails at runtime, it is a key noctalia does not know, and `config validate`
-# reports it as an unknown setting.
+# A widget's name is its id and `type` is what it is.
+# Middle-click opens a settings page unless it is bound to something else or to "none".
+# Plugin widgets cannot take an actions table at all; the validator rejects the key.
 
 [widget.workspaces]
 type                = "workspaces"
 # Each bar shows only its own screen's ten; show_all_outputs is the one that filters.
 show_all_outputs    = false
 focused_output_only = true
-# Dots, not digits: the number is already on the key you pressed. The colours
-# name a PALETTE ROLE rather than a hex, so bazzite-grey.json stays the one
-# place a colour is decided.
+# Dots, not digits: the number is already on the key you pressed.
+# Colours name a palette role, not a hex, so bazzite-grey.json stays the only place one is set.
 show_labels         = false
 pill_scale          = 0.6
 active_pill_size    = 2.0
@@ -121,10 +98,8 @@ min_length = 0.0
     [widget.active_window.actions]
     middle = "none"
 
-# Screen sharing through xdg-desktop-portal-wlr is whole-output only, with no
-# window picker: when something is capturing, it is capturing everything, and
-# this is the only thing on screen that says so. hide_inactive is what makes its
-# appearing the signal, rather than one more glyph to learn to ignore.
+# Screen sharing here always captures the whole screen, and this is the only thing that says so.
+# It stays hidden until then, so its appearing is the signal.
 [widget.privacy]
 type          = "privacy"
 hide_inactive = true
@@ -132,39 +107,29 @@ hide_inactive = true
     [widget.privacy.actions]
     middle = "none"
 
-# Outside the pill because its contents are not ours -- whatever applications
-# registered, in their own artwork.
+# Outside the pill because the icons belong to whatever apps registered them.
 [widget.tray]
 type = "tray"
 
-# What it captures and where it lands are [shell.screenshot] in 10-shell.toml,
-# so the button and the keybinding share one set of rules.
+# The rules live in 10-shell.toml, so this button and the Print key behave the same.
 [widget.screenshot]
 type = "screenshot"
 
     [widget.screenshot.actions]
     middle = "none"
 
-# A plugin reference, <author>/<plugin>:<entry>, resolved through the community
-# source in 50-services.toml.
-#
-# EXPECT ONE VALIDATOR WARNING FOR THIS LINE and do not chase it: `config
-# validate` parses headlessly and never fetches, so it cannot resolve a type
-# behind a git source. `noctalia msg plugins list` is the check that answers.
+# A plugin, fetched through the community source in 50-services.toml.
+# Expect one validator warning here and ignore it: validation never fetches, so it cannot see the type.
 [widget.color_picker]
 type = "oldirtty/color_picker:widget"
 
-# 30-input.conf gives sway `us,ru` and cycles them with Alt+Shift; this glyph is
-# the only thing on screen that says which is live. Left-click cycles too.
-#
-# `short` draws "US"; `full` draws "English (US)", which this strip has no room
-# for. noctalia emits no default for it, so it is pinned.
+# Alt+Shift cycles us/ru, and this glyph is the only thing that says which one is live.
+# `short` draws "US", because "English (US)" does not fit a 24px bar.
 [widget.keyboard_layout]
 type    = "keyboard_layout"
 display = "short"
 
-# DEFINED BUT NOT PLACED. None of the four below is in `start` or `end` above --
-# the bar matches what the settings GUI had. Adding one back is a single line.
+# Defined but not placed: none of the four below is in `start` or `end`, and adding one back is one line.
 
 [widget.swaymode]
 type = "asinglebit/bazzite-sway:swaymode"
@@ -181,13 +146,10 @@ type = "asinglebit/bazzite-sway:hardware"
 [widget.output_volume]
 type       = "volume"
 device     = "output"
-# One glyph, no percentage: the figure is in the OSD when the level changes and
-# in the control centre when it does not.
+# One glyph, no percentage: the number is in the OSD and the control centre already.
 show_label = false
 
-    # Scroll works by default, so the glyph is a volume control without the
-    # panel. Right-click keeps the one thing the panel cannot replace:
-    # pavucontrol, for routing and profiles.
+    # Scrolling on the glyph already changes volume; right-click keeps pavucontrol for routing.
     [widget.output_volume.actions]
     left   = "panel-toggle control-center"
     right  = "run pavucontrol"
@@ -204,8 +166,7 @@ show_label = false
 [widget.bluetooth]
 type = "bluetooth"
 
-    # Routine pairing is noctalia's -- it is an org.bluez.Agent1. blueman-manager
-    # stays as the deep pairing dialogue.
+    # noctalia handles normal pairing, and blueman-manager stays for the awkward cases.
     [widget.bluetooth.actions]
     left   = "panel-toggle control-center"
     right  = "run blueman-manager"
@@ -227,9 +188,7 @@ format = "{:%H:%M}"
     left   = "panel-toggle control-center"
     middle = "none"
 
-# The one thing here with no state to read: it shows that sound is happening,
-# which the volume glyph cannot -- a muted stream and a silent one look identical
-# there. Draws in the palette, so on bazzite-grey it is motion in grey.
+# Shows that sound is actually playing, which the volume glyph cannot: muted and silent look the same there.
 [widget.audio_visualizer]
 type = "audio_visualizer"
 

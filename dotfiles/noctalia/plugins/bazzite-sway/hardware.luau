@@ -1,15 +1,12 @@
 --!nonstrict
--- cpu load, memory and package temperature as one glyph. The thresholds are the
--- point: the bar brightens when the machine is in trouble, so the figures never
--- have to be hovered.
+-- cpu, memory and temperature as one glyph that brightens when the machine is struggling.
 
--- Kept in step with [system.monitor] in 50-services.toml by hand; verify.sh
--- compares the two.
+-- These must match [system.monitor] in 50-services.toml by hand, and verify.sh compares them.
 local TEMP_WARN, TEMP_CRIT = 75, 85
 local CPU_WARN,  CPU_CRIT  = 80, 95
 local MEM_WARN,  MEM_CRIT  = 85, 95
 
--- Package-sensor `type` values in preference order, then hwmon `name` values.
+-- Sensor names to look for, best first.
 local ZONE_TYPES  = { x86_pkg_temp = true, k10temp = true, cpu_thermal = true, soc_thermal = true }
 local HWMON_NAMES = { coretemp = true, k10temp = true, zenpower = true }
 
@@ -20,8 +17,7 @@ local function trim(s: string?): string
   return (string.gsub(s, "^%s*(.-)%s*$", "%1"))
 end
 
--- Utilisation from two /proc/stat samples one interval apart. nil on the first
--- tick, when there is nothing to diff against.
+-- Needs two samples to compare, so the first tick returns nothing.
 local function cpuPct(): number?
   local stat = noctalia.readFile("/proc/stat")
   if not stat then return nil end
@@ -34,7 +30,7 @@ local function cpuPct(): number?
     local v = tonumber(field) or 0
     total += v
     i += 1
-    -- Fields 4 and 5 of the aggregate cpu line are idle and iowait.
+    -- Fields 4 and 5 are idle and iowait.
     if i == 4 or i == 5 then idle += v end
   end
 
@@ -49,8 +45,7 @@ local function cpuPct(): number?
   return pct
 end
 
--- MemAvailable, not MemFree: free excludes the page cache and reads as almost
--- full after an hour of uptime.
+-- MemAvailable, not MemFree, because free ignores the page cache and always looks full.
 local function mem(): (number?, string?)
   local info = noctalia.readFile("/proc/meminfo")
   if not info then return nil, nil end
@@ -63,16 +58,14 @@ local function mem(): (number?, string?)
   return pct, human
 end
 
--- MATCHED BY NAME, NEVER BY INDEX. thermal_zone0 here is `acpitz`, a chassis
--- sensor reading near 28C; the package sensor is zone 1 today. An index would
--- break the first time the kernel reordered them, and break quietly.
+-- Found by name, never by index: the kernel renumbers the zones and zone 0 is the wrong sensor.
 local function tempC(): number?
   local zones = noctalia.listDir("/sys/class/thermal")
   if zones then
     for _, name in zones do
       if string.match(name, "^thermal_zone%d+$") then
         local kind = trim(noctalia.readFile(`/sys/class/thermal/{name}/type`))
-        -- cpu-thermal and soc_thermal both appear with a hyphen on some kernels.
+        -- Some kernels spell these with a hyphen.
         kind = string.gsub(kind, "-", "_")
         if ZONE_TYPES[kind] then
           local milli = tonumber(trim(noctalia.readFile(`/sys/class/thermal/{name}/temp`)))
@@ -81,7 +74,7 @@ local function tempC(): number?
       end
     end
   end
-  -- hwmon*, matched on `name`.
+  -- Fall back to hwmon, also matched by name.
   local hwmons = noctalia.listDir("/sys/class/hwmon")
   if hwmons then
     for _, name in hwmons do
@@ -105,7 +98,7 @@ local function loadTriple(): string
   return `{a} {b} {c}`
 end
 
--- These three roles are #9a9a9a, #d8d8d8 and #ffffff in this palette.
+-- These three palette roles are progressively brighter greys.
 local function severity(cpu: number?, memPct: number?, temp: number?): string
   local function over(v: number?, warn: number, crit: number): number
     if not v then return 0 end
@@ -131,7 +124,7 @@ function update()
   barWidget.setGlyph("cpu")
   barWidget.setGlyphColor(severity(cpu, memPct, temp))
 
-  -- The host aligns these rows, so no padding is needed.
+  -- The host aligns these rows, so they need no padding.
   barWidget.setTooltip({
     { "cpu",  cpu and `{cpu}%` or "--" },
     { "load", loadTriple() },

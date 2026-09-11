@@ -1,11 +1,6 @@
 #!/usr/bin/bash
-# Remove the Plasma session and the KDE applications, keeping the Qt6/KF6
-# libraries that btrfs-assistant, bazzite-updater, pinentry-qt and KDE-flatpak
-# theming need.
-#
-# EXPLICIT LEAF PACKAGES ONLY. Globs (plasma-*, kde-*) would take
-# plasma-foreground-booster-dmemcg and kde-settings with them, and comps
-# `group remove` is not tracked on an atomic image at all.
+# Removes the Plasma session and KDE apps, but keeps the Qt libraries other tools still need.
+# Every package is listed by name, because a glob would take things that are still wanted.
 set -euxo pipefail
 
 REMOVE=(
@@ -18,7 +13,7 @@ REMOVE=(
     powerdevil aurorae
     plasma-integration plasma-integration-qt5
 
-    # Login manager -- greetd is already the DM by this point.
+    # Login manager; greetd already took over in the previous step.
     plasma-login-manager kcm-plasmalogin kde-settings-plasmalogin
 
     # Applets and services replaced by the Sway stack.
@@ -47,8 +42,7 @@ REMOVE=(
     kcm-fcitx5
 )
 
-# Only pass what is installed, so the transaction is deterministic and a package
-# disappearing upstream is not a build failure.
+# Only ask to remove what is actually installed, so an upstream drop is not a build failure.
 INSTALLED=()
 for pkg in "${REMOVE[@]}"; do
     if rpm -q "${pkg}" >/dev/null 2>&1; then
@@ -58,42 +52,29 @@ for pkg in "${REMOVE[@]}"; do
     fi
 done
 
-# --no-autoremove: the Qt6/KF6 stack is intentionally orphaned but kept.
+# --no-autoremove, because the Qt stack is meant to be left behind.
 dnf5 remove -y --no-autoremove "${INSTALLED[@]}"
 
-# fcitx5 loses its KDE config UI with kcm-fcitx5; give it the GTK one back.
+# fcitx5 just lost its KDE settings window, so give it the GTK one.
 if rpm -q fcitx5 >/dev/null 2>&1; then
     dnf5 install -y fcitx5-configtool
 fi
 
-# Guard rails. A regression here has to fail the build.
-#
-# Xwayland is versionlocked to Bazzite's Valve-patched build and was required by
-# plasma-workspace as well as sway-config-fedora.
+# Everything below has to fail the build rather than surface later on a booted machine.
 rpm -q xorg-x11-server-Xwayland
 rpm -q xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
-# --whatprovides, NOT `rpm -q sway`: 15-swayfx.sh swapped the package for
-# swayfx, which Provides sway and Conflicts sway. A literal `rpm -q sway` fails
-# here and takes the whole build with it.
+# --whatprovides, because the sway package was swapped for swayfx in an earlier step.
 rpm -q --whatprovides sway
 rpm -q sway-config-fedora sway-systemd greetd tuigreet
-# Everything this desktop is except the compositor is behind this one package,
-# including the only authentication agent on the machine. A Plasma transaction
-# that reached it would leave a session that is a compositor and a wallpaper.
+# Everything but the compositor is this one package, including the only password prompt.
 rpm -q noctalia
 test -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
-# A DIFFERENT product on a different version line -- 1.x from Terra against the
-# shell's 5.x from Fedora -- sharing nothing but a name and a palette.
+# A different product from the shell above, sharing only a name and a palette.
 rpm -q noctalia-greeter
-# Asserted for the OPPOSITE reason to the lines above. These stay installed
-# because sway-config-fedora hard-Requires them, and 18-noctalia-shell.sh's
-# /etc/sway/config.d/ overrides retire them. If Fedora ever stops requiring one,
-# it disappears and its override retires nothing -- silently, because a
-# retirement file for a drop-in that no longer exists looks exactly like one
-# that is working.
+# These must STAY installed: they are retired by config instead, and a retirement file
+# for a package that is gone looks exactly like one that is working.
 rpm -q waybar swaylock swayidle grimshot lxqt-policykit
-# The seven that genuinely went, so deliberate removals stay distinguishable
-# from casualties.
+# The ones that genuinely went, so a deliberate removal stays distinguishable from an accident.
 ! rpm -q SwayNotificationCenter
 ! rpm -q mako
 ! rpm -q rofi
@@ -101,14 +82,13 @@ rpm -q waybar swaylock swayidle grimshot lxqt-policykit
 ! rpm -q cliphist
 ! rpm -q swappy
 ! rpm -q mate-polkit
-# Nothing removes these -- the script that installed them is deleted. Asserted
-# because "the script is gone" and "the packages are gone" are different claims.
+# Nothing removes these any more, and "the script is gone" is not the same claim as "they are gone".
 ! rpm -q hyprlock
 ! rpm -q hypridle
 test ! -f /etc/yum.repos.d/_copr_scottames-hypr.repo
 rpm -q btrfs-assistant bazzite-updater
 rpm -q steam
 
-# Plasma must be gone as a session.
+# And Plasma must no longer be offered as a session.
 test ! -e /usr/share/wayland-sessions/plasma.desktop
 test -e /usr/share/wayland-sessions/sway.desktop

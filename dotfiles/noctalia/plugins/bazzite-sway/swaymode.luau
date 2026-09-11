@@ -1,11 +1,5 @@
 --!nonstrict
--- Sway's binding-mode indicator.
---
--- `swaymsg -t subscribe` is the only way to hear about a mode change: a
--- long-lived process emitting one JSON object per event, which is what
--- runStream is for. Nothing here polls.
---
--- No glyph: when this widget is visible, the word IS the information.
+-- Shows sway's binding mode, as a word rather than a glyph, and nothing here polls.
 
 local function show(mode: string)
   if mode == "" or mode == "default" then
@@ -18,8 +12,7 @@ local function show(mode: string)
 end
 
 function update()
-  -- Event-driven, so this only has to run once to start the subscription. The
-  -- interval is the host's floor, not a poll.
+  -- Runs once to start the subscription; the interval is just the host's minimum.
   noctalia.setUpdateInterval(3600000)
 end
 

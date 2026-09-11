@@ -1,31 +1,15 @@
-# palettes/bazzite-grey.json is a transliteration of the sixteen Material roles
-# in the greeter's greeter.toml. That file carries the rationale and the
-# measurements for every value -- read it, not this one.
-#
-# The two copies must stay equal or the handoff at login is visible, and
-# verify.sh asserts it. `noctalia msg greeter-sync` is deliberately NOT used:
-# tmpfiles.d recreates the greeter's /var copy from /usr/share/factory on every
-# boot, so a sync write is reverted at the next reboot.
-#
-# Not "wallpaper": a generated palette is the one thing a deliberately greyscale
-# desktop cannot survive.
+# The palette is a copy of the greeter's, which holds the reasoning for every value.
+# The two must stay equal or you see the colours change at login, and verify.sh checks that.
+# Not "wallpaper": a palette generated from an image would wreck a deliberately grey desktop.
 [theme]
 source         = "custom"
 custom_palette = "bazzite-grey"
 mode           = "dark"
 shell_mode     = "dark"
 
-# TEMPLATES OFF -- a trap, not a preference. They do not emit a file and stop.
-#
-# templates/gtk/apply.sh appends an @import to ~/.config/gtk-3.0/gtk.css and
-# resolves the symlink, writing straight into this git tree; it then sets
-# org.gnome.desktop.interface gtk-theme in dconf, overriding the gschema file
-# that exists to own exactly that.
-#
-# templates/sway/apply.sh is worse: it appends an include to
-# ~/.config/sway/config and CREATES that file if missing. sway reads it before
-# /etc/sway/config and stops at the first match, so on this image that yields a
-# session with no $term, no bindings and no layered-include.
+# Templates off because they do not just write a file: the gtk one edits this git tree
+# through the symlink, and the sway one creates ~/.config/sway/config, which would
+# shadow /etc/sway/config and leave a session with no bindings at all.
 [theme.templates]
 enable_builtin_templates   = false
 enable_community_templates = false

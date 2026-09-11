@@ -1,29 +1,18 @@
-# One number for every surface noctalia draws, which is what 30-bar.toml points
-# at rather than growing a per-connector table. The bar multiplies its own 0.75
-# on top of this.
+# One scale for every surface the shell draws; the bar multiplies its own 0.75 on top.
 [accessibility]
 ui_scale = 0.9
 
 [shell]
-# THE MOST CONSEQUENTIAL LINE HERE, and it is off by default. This is the only
-# authentication agent on the machine -- mate-polkit is uninstalled and
-# lxqt-policykit's drop-in is retired. With no agent, pkexec, ujust and
-# bazzite-user-setup do not fail, they HANG, with no error anywhere.
+# The only password prompt on the machine, and off by default; without it pkexec and ujust just hang.
 polkit_agent = true
 
-# Has to be a family fontconfig actually resolves: a miss is not an error, it is
-# the whole shell quietly rendering in the fallback. 30-bar.toml overrides this
-# for the bar alone.
+# Must be a font that is actually installed, or the whole shell quietly renders in the fallback.
 font_family = "Noto Sans CJK SC"
 
-# Scales the radii of elements INSIDE a surface -- list rows, buttons, sliders --
-# which the compositor cannot reach. Deliberately tighter than the surface
-# around it: at 1.0 a list row curves like the panel holding it.
+# Rounds things inside a panel, like buttons and list rows; tighter than the panel itself on purpose.
 corner_radius_scale = 0.7
 
-# The only shadow the popups get. SwayFX's `shadows enable` applies to VIEWS; a
-# layer surface gets only what its own layer_effects line asks for, and none of
-# them asks for shadows.
+# The only shadow popups get, because SwayFX shadows apply to windows and not to panels.
 popup_shadows = true
 
 card_borders   = true
@@ -34,8 +23,7 @@ popup_borders  = true
 time_format = "{:%H:%M}"
 date_format = "%A, %x"
 
-# This is an image, not a first run -- the wizard would appear on every fresh
-# install before `just link-dotfiles` had put this file in place.
+# Off because this is an image: the wizard would greet every fresh install.
 setup_wizard_enabled = false
 telemetry_enabled    = false
 
@@ -52,9 +40,7 @@ clipboard_keep_from_closed_apps = true
     remember_last_region = true
 
     [shell.panel]
-    # control_center_position is pinned rather than left at "auto" because FOUR
-    # bar widgets open that one panel; "auto" anchored it under whichever glyph
-    # was clicked, so it walked along the bar.
+    # Pinned rather than "auto" because four bar widgets open this one panel, so it used to wander.
     control_center_placement = "attached"
     control_center_position  = "center"
     session_placement        = "attached"
@@ -69,18 +55,13 @@ clipboard_keep_from_closed_apps = true
     borders                  = true
     shadow                   = false
 
-    # This is what makes 25-effects.conf's blur visible at all: at "solid" the
-    # compositor still runs a blur pass behind every panel and the panel paints
-    # straight over it.
+    # This is what makes the compositor's blur visible; at "solid" the panel just paints over it.
     transparency_mode        = "glass"
 
-    # What "glass" costs -- over a translucent panel a bare list row loses its
-    # edges against whatever shows through.
+    # What "glass" costs: a bare list row loses its edges against whatever shows through.
     list_item_background     = true
 
-    # 16, down from the default 32, which is sized for a floating bar with a
-    # margin. This bar spans the full width at the top edge, so a 32px curve bit
-    # into the BAR's corners rather than the screen's.
+    # Half the default, because this bar touches the top edge and a bigger curve bites into it.
     [shell.screen_corners]
     size = 16
 
@@ -96,8 +77,7 @@ clipboard_keep_from_closed_apps = true
     enabled = true
     speed   = 1.0
 
-    # Never: the greeter's /var copy is recreated from the image on every boot,
-    # so a sync write does not survive a reboot. See 20-theme.toml.
+    # Never, because the greeter's copy is recreated from the image on every boot anyway.
     [shell.greeter_sync]
     auto_sync = false
 
@@ -122,7 +102,7 @@ monitors           = []
     lock_keys          = true
     bluetooth          = true
     wifi               = true
-    # No keyboard backlight on this desktop; the layout is on the bar instead.
+    # No keyboard backlight on a desktop, and the layout is already on the bar.
     keyboard_backlight = false
     keyboard_layout    = false
     power_profile      = true
@@ -137,8 +117,7 @@ show_actions       = true
 collapse_on_dismiss = true
 monitors           = []
 
-# /sys/class/backlight is empty here -- both outputs are external -- so ddcutil
-# talks to the monitors over I2C instead. See 40-bindings.conf.
+# Both monitors are external, so brightness goes over DDC/CI rather than /sys/class/backlight.
 [brightness]
 enable_ddcutil     = true
 sync_all_monitors  = false

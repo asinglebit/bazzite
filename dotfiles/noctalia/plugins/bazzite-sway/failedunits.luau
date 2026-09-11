@@ -1,8 +1,6 @@
 --!nonstrict
--- Failed systemd units, both managers. Invisible until something breaks.
---
--- Its limit: the one unit whose failure this cannot report is noctalia.service,
--- because there is no bar left to draw it on. That is what verify.sh is for.
+-- Failed systemd units, hidden until something breaks.
+-- It cannot report noctalia.service failing, because then there is no bar to draw on.
 
 local system, user = 0, 0
 

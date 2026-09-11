@@ -1,39 +1,22 @@
-# Bazzite + SwayFX — a Bazzite-derived bootc image running SwayFX instead of KDE Plasma.
-#
-# Built on the ublue-os/image-template shape: the `ctx` scratch stage keeps the
-# build scripts out of the base layer's cache key, so editing build_files/ does
-# not invalidate the 5+ GiB base image layer.
+# A Bazzite-derived bootc image running SwayFX instead of KDE Plasma.
+# The `ctx` stage exists so that editing build_files/ does not rebuild the 5 GiB base layer.
 
 FROM scratch AS ctx
 COPY build_files   /build_files
 COPY system_files  /system_files
-# Public half of the CI signing key. 50-signing.sh installs it as
-# /etc/pki/containers/asinglebit.pub and points policy.json at it.
+# Public half of the signing key; 50-signing.sh installs it and points policy.json at it.
 COPY cosign.pub    /cosign.pub
 
 FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable
 
-# Where this image will be published. Empty means a local build: 40-branding.sh
-# then keeps the containers-storage ref and 50-signing.sh skips the trust setup,
-# so `just build` still produces a working unsigned image with no GHCR involved.
+# Where the image gets published; empty means a local build, which skips the signing setup.
 ARG IMAGE_REGISTRY=""
 
-# One image, one tag. There used to be a REMOVE_KDE arg and a :plasma variant
-# that kept the Plasma session selectable at the login prompt as first-install
-# insurance; build_files/30-kde-remove.sh now always runs. The tag stays a build
-# arg because 40-branding.sh writes it into image-info.json.
+# One image, one tag; it stays an arg because 40-branding.sh writes it into image-info.json.
 ARG IMAGE_TAG="sway"
 
-# A hash of everything in the ctx stage, passed by `just build-image`.
-#
-# It is referenced by the RUN below purely so podman folds it into that step's
-# cache key. Without it, editing build_files/ invalidates nothing -- the `ctx`
-# scratch stage keeps the scripts out of the base layer's cache key, which is the
-# point, but podman does not put the bind-mounted stage's content into the RUN's
-# key either. The result is a build that reports "Using cache", tags an image
-# identical to the previous one, and lets `just switch` find nothing to do.
-#
-# Defaulted so a bare `podman build` still works; it just gets the old behaviour.
+# A hash of the build scripts, used only so podman notices when they change.
+# Without it a build says "Using cache" and quietly tags the previous image again.
 ARG CTX_DIGEST=""
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
@@ -44,8 +27,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
 
 RUN bootc container lint
 
-# org.opencontainers.image.source is what makes GHCR attach the package to the
-# repo and inherit its visibility settings; without it the package floats free.
+# The source label is what attaches the package to the repo on GHCR.
 LABEL org.opencontainers.image.source="https://github.com/asinglebit/bazzite"
 LABEL org.opencontainers.image.description="Bazzite-derived bootc image running SwayFX instead of KDE Plasma"
 LABEL org.opencontainers.image.title="bazzite-sway"

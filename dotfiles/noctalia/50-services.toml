@@ -1,5 +1,4 @@
-# noctalia's lock screen and idle daemon are one process, so there is no command
-# to block on and nothing to sequence. Both behaviours are off by default.
+# The lock screen and the idle daemon are one process, so there is nothing to sequence.
 [idle]
 behavior_order = [ "lock", "screen-off" ]
 
@@ -13,8 +12,7 @@ behavior_order = [ "lock", "screen-off" ]
     action  = "screen_off"
     timeout = 360.0
 
-    # This machine does not suspend on idle; lock_before_suspend below covers
-    # the suspend path.
+    # This machine never suspends on idle; lock_before_suspend covers the suspend path.
     [idle.behavior.lock-and-suspend]
     enabled = false
 
@@ -22,24 +20,18 @@ behavior_order = [ "lock", "screen-off" ]
 enabled              = true
 lock_before_suspend  = true
 allow_empty_password = false
-# Blurs the DESKTOP rather than loading an image, so it needs no path -- and so
-# the lock screen does not depend on `just link-dotfiles` having run.
+# Blurs the desktop instead of loading an image, so the lock screen works before link-dotfiles has run.
 blurred_desktop      = true
 blur_intensity       = 0.5
 tint_intensity       = 0.3
 monitors             = []
 
-# OFF, for two reasons. [wallpaper] takes a DIRECTORY to cycle, not a file, and
-# this desktop has one tracked PNG. And sway paints the background before
-# anything else starts, so there is no window where the screen is bare.
-#
-# `output * bg` in 20-appearance.conf is the setter. Turning this on means two
-# things painting one surface, with startup order picking the winner.
+# Off because sway already paints the wallpaper in 20-appearance.conf.
+# Turning it on means two things painting one surface, and startup order picks the winner.
 [wallpaper]
 enabled = false
 
-# Here rather than in the widget so the control centre and the
-# bazzite-sway:hardware plugin colour against the same figures.
+# Here rather than in the widget, so the control centre and the hardware plugin use the same numbers.
 [system.monitor]
 enabled = true
 
@@ -50,17 +42,14 @@ cpu_temp_critical_threshold  = 85.0
 ram_pct_activity_threshold   = 85.0
 ram_pct_critical_threshold   = 95.0
 
-# EMPTY DELIBERATELY. thermal_zone0 here is `acpitz`, a chassis sensor sitting
-# near 28C; the package sensor is zone 1 today. A path written down would break
-# the first time the kernel reordered them, and break quietly. Left empty,
-# noctalia discovers it and verify.sh reports which one it settled on.
+# Left empty on purpose: the thermal zones get renumbered by the kernel, so a written-down
+# path would quietly start reading the wrong sensor. noctalia finds it and verify.sh says which.
 cpu_temp_sensor_path = ""
 
 cpu_poll_seconds    = 10.0
 memory_poll_seconds = 10.0
 
-# A gamma ramp over the whole output, against a calibrated grey palette. The
-# control-centre shortcut below is how it gets turned on for an evening.
+# Off by default, since it tints a carefully grey palette; the shortcut below turns it on for an evening.
 [nightlight]
 enabled = false
 
@@ -83,22 +72,13 @@ sidebar             = "compact"
     [[control_center.shortcuts]]
     type = "nightlight"
 
-    # CAVEAT: bazzite-grey.json defines a `dark` block and no `light` one, which
-    # is why 20-theme.toml pins both modes to dark. This button reaches past
-    # that, so a desktop that suddenly goes pale is this control, not a bug.
+    # The palette has no light variant, so if the desktop suddenly goes pale, this button is why.
     [[control_center.shortcuts]]
     type = "dark_mode"
 
-# TWO KNOBS, deliberately split. A source's `enabled` lets the shell resolve and
-# install what the list below names, when asked. `auto_update` decides whether it
-# goes back to GitHub on its own afterwards, and it stays "none": an image whose
-# shell updates itself in the background is an image whose contents are not what
-# the commit says they are.
-#
-# THE COST: only bazzite-sway is in this repo. The other five resolve from
-# github.com at first use and cache under ~/.local/state/noctalia/plugin-cache,
-# untracked and outside the image. Vendor one into dotfiles/noctalia/plugins and
-# add a path source to pin it, as bazzite-sway does.
+# auto_update stays "none": a shell that updates itself in the background is no longer
+# the thing the commit says it is. Installing when asked is fine, which is what `enabled` does.
+# Only bazzite-sway is in this repo; the other five are fetched at first use and cached outside the image.
 [plugins]
 auto_update = "none"
 enabled     = [

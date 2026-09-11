@@ -1,18 +1,12 @@
 #!/bin/sh
-# Mark the main monitor as the Xwayland RandR primary output.
-#
-# wlroots never sets one, so X11 clients that place windows on the primary
-# output (game launchers, Steam, older toolkits) land wherever enumeration puts
-# them. Sway has no directive for this, hence exec_always.
-#
-# The connector is looked up from the EDID identifier at runtime, so this
-# survives the monitors moving ports.
+# Marks the main monitor as the Xwayland primary, so X11 apps like Steam open on it.
+# wlroots never sets one and sway has no directive for it, hence exec_always.
 
 set -eu
 
 IDENT='Dell Inc. DELL U2718Q FN84K78S04DL'
 
-# No X server for this session -- nothing to do.
+# No X server this session, so there is nothing to do.
 [ -n "${DISPLAY:-}" ] || exit 0
 
 name=$(swaymsg -t get_outputs -r | python3 -c "
@@ -24,7 +18,7 @@ for o in json.load(sys.stdin):
         break
 " "$IDENT")
 
-# Monitor not currently connected -- leave whatever Xwayland decided alone.
+# Monitor is unplugged, so leave whatever Xwayland picked.
 [ -n "$name" ] || exit 0
 
 exec xrandr --output "$name" --primary
