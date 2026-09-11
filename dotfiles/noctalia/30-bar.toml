@@ -97,10 +97,17 @@ order = [ "default" ]
 
 [widget.workspaces]
 type                = "workspaces"
-focused_output_only = false
-# Dots, not digits: the number is already on the key you pressed. The colours
-# name a PALETTE ROLE rather than a hex, so bazzite-grey.json stays the one
-# place a colour is decided.
+# Each screen owns a private block of ten workspaces, so a bar listing every
+# workspace would draw both screens' blocks on both screens -- twenty dots, of
+# which ten are unreachable from that keyboard position. show_all_outputs is the
+# one that filters; focused_output_only only decides how the OTHER screen's
+# active workspace is tinted, and its name is more promising than its job.
+show_all_outputs    = false
+focused_output_only = true
+# Dots, not digits: the number is already on the key you pressed, and with the
+# blocks it is the only honest label -- this screen's third dot is workspace 13.
+# The colours name a PALETTE ROLE rather than a hex, so bazzite-grey.json stays
+# the one place a colour is decided.
 show_labels         = false
 pill_scale          = 0.6
 active_pill_size    = 2.0

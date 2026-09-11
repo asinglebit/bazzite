@@ -162,7 +162,7 @@ just check-shell-config                # optional: validate the config as commit
 `link-dotfiles` is idempotent, backs up anything in the way, and prunes symlinks this repo no
 longer ships. The desktop works without it — the image retires Fedora's sway drop-ins in `/etc`, so
 a first login gets a working bar and launcher on stock defaults. What it adds is the palette, the
-monitor layout and the plugins.
+monitor layout, the per-screen workspaces and the plugins.
 
 `greeter-avatar` cannot be part of the image: the greeter reads the user's `IconFile` from
 AccountsService, which is per-user state under `/var`. Without it the login screen draws its stock
@@ -217,6 +217,15 @@ the image (`**.md`, `dotfiles/**` and `verify.sh` are ignored), on pull requests
   deleting it hands control back.
 - **A rollback restores the image, not `dotfiles/`.** The two roll back separately and neither
   knows about the other.
+- **`$mod+1`..`0` is per-screen, not per-workspace.** Every screen owns a private block of ten
+  workspaces by its left-to-right position — 1–10 on the left screen, 11–20 on the right — and the
+  number keys resolve inside the block of whichever screen has focus, so `$mod+1` means "the first
+  workspace of *this* screen" and never moves focus to the other monitor.
+  `dotfiles/sway/workspace-block.sh` derives the block from `swaymsg -t get_outputs` at press time;
+  `10-outputs.conf` pins no workspace to any monitor. A workspace found on the wrong screen is
+  dragged home by pressing its number, or by `swaymsg reload`. Unplugging a screen strands its
+  block on the survivor, where ten keys cannot reach twenty workspaces; re-plugging and one
+  keypress restores it. `verify.sh` reports strays as warnings.
 - **No HDR** (`color-management-v1` is sway 1.12; F44 has 1.11) and **no Vulkan renderer**
   (SwayFX's `fx_renderer` is GLES2-only). VRR does work.
 - **No screen recording** — noctalia's capture is stills. **Screen sharing is whole-output only**;
