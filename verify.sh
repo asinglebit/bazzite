@@ -209,14 +209,13 @@ if [ ! -r "$ws_conf" ]; then
     no "40-bindings.conf not readable at $ws_conf -- run: just link-dotfiles"
 else
     ws_n=$(grep -cE '^bindsym .*workspace-block\.sh' "$ws_conf")
-    # Only the $mod ones overwrite /etc/sway/config; $alt+1..0 is free there and needs no --no-warn.
-    ws_bare=$(grep -E '^bindsym .*\$mod\+.*workspace-block\.sh' "$ws_conf" | grep -cv -- '--no-warn' || true)
-    if [ "$ws_n" -ne 30 ]; then
-        no "$ws_n workspace bindings in 40-bindings.conf, expected 30 (\$mod+1..0, \$mod+Shift+1..0 and \$alt+1..0)"
+    ws_bare=$(grep -E '^bindsym .*workspace-block\.sh' "$ws_conf" | grep -cv -- '--no-warn' || true)
+    if [ "$ws_n" -ne 20 ]; then
+        no "$ws_n workspace bindings in 40-bindings.conf, expected 20 (\$mod+1..0 and \$mod+Shift+1..0)"
     elif [ "$ws_bare" -ne 0 ]; then
         no "$ws_bare workspace binding(s) without --no-warn -- each overwrites /etc/sway/config and raises the error bar"
     else
-        ok "30 workspace bindings, every \$mod one --no-warn"
+        ok "20 workspace bindings, all --no-warn"
     fi
 fi
 
