@@ -431,7 +431,7 @@ for o in json.load(sys.stdin):
         ns = s.get("namespace", "")
         if ns.startswith("noctalia"):
             seen[ns] = s.get("effects", {}).get("blur", False)
-print(" ".join(f"{k}={'blur' if v else 'PLAIN'}" for k, v in sorted(seen.items())))
+print(" ".join(k + "=" + ("blur" if v else "PLAIN") for k, v in sorted(seen.items())))
 ' 2>/dev/null)
     if [[ -z "$noctalia_surfaces" ]]; then
         no "no noctalia layer surfaces mapped -- the shell is not drawing anything"
