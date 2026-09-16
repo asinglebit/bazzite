@@ -388,6 +388,7 @@ fi
 
 # Anything changed in the settings window lands in a file that outranks this whole repo,
 # is not version-controlled, and cannot be found by reading dotfiles/; deleting it hands control back.
+# $mod+period writes `bar.<name>.enabled` into it on purpose, so deleting it also brings the bar back.
 if [ -s "$HOME/.local/state/noctalia/settings.toml" ]; then
     meh "settings.toml exists and OUTRANKS dotfiles/noctalia -- rm ~/.local/state/noctalia/settings.toml to hand control back"
 else
@@ -419,6 +420,20 @@ else
     meh "cannot compare palettes (run just link-dotfiles?)"
 fi
 
+# The bar switch is a file edit rather than a `noctalia msg` call, so the helper has to be
+# both linked and runnable: sway's `sh -c` swallows either failure and the key just does nothing.
+noctalia_toggle="${XDG_CONFIG_HOME:-$HOME/.config}/sway/noctalia-bar-toggle.sh"
+noctalia_bind="${XDG_CONFIG_HOME:-$HOME/.config}/sway/config.d/40-bindings.conf"
+if [ ! -e "$noctalia_toggle" ]; then
+    no "noctalia-bar-toggle.sh missing from ~/.config/sway -- run: just link-dotfiles"
+elif [ ! -x "$noctalia_toggle" ]; then
+    no "noctalia-bar-toggle.sh is NOT executable -- \$mod+period does nothing and says nothing"
+elif ! grep -q 'noctalia-bar-toggle\.sh' "$noctalia_bind" 2>/dev/null; then
+    no "nothing in 40-bindings.conf runs noctalia-bar-toggle.sh -- the bar cannot be switched off"
+else
+    ok "\$mod+period bar switch wired (now: $("$noctalia_toggle" print 2>/dev/null | tr '\n' ' ' | sed 's/ $//'))"
+fi
+
 # A misspelled namespace in 25-effects.conf is not an error, just a panel that is never
 # frosted, so ask the compositor what it actually applied.
 if command -v swaymsg >/dev/null && [ -n "${SWAYSOCK:-}" ]; then
@@ -433,7 +448,13 @@ for o in json.load(sys.stdin):
 print(" ".join(k + "=" + ("blur" if v else "PLAIN") for k, v in sorted(seen.items())))
 ' 2>/dev/null)
     if [[ -z "$noctalia_surfaces" ]]; then
-        no "no noctalia layer surfaces mapped -- the shell is not drawing anything"
+        # A bar switched off with $mod+period leaves nothing to blur, so only an
+        # absence nobody asked for is a failure.
+        if [ -x "$noctalia_toggle" ] && ! "$noctalia_toggle" print 2>/dev/null | grep -qv ' off$'; then
+            meh "every bar is disabled in settings -- \$mod+period turns them back on"
+        else
+            no "no noctalia layer surfaces mapped -- the shell is not drawing anything"
+        fi
     elif [[ "$noctalia_surfaces" == *PLAIN* ]]; then
         no "a noctalia surface is mapped but NOT blurred (namespace mismatch in 25-effects.conf): $noctalia_surfaces"
     else

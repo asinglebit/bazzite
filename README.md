@@ -185,6 +185,10 @@ the `tuigreet` line written in its comments, `systemctl restart greetd`. greetd 
 `Restart=always` with `StartLimitBurst=5` and `Conflicts=getty@tty1.service`, so five failures in
 thirty seconds leaves VT 1 dead — logind's other five VTs still work.
 
+**If the bar is gone but nothing else is,** it is probably switched off rather than broken:
+`$mod+period` disables every bar through noctalia's own `enabled` setting and turns them back on,
+and `~/.config/sway/noctalia-bar-toggle.sh print` says which state they are in.
+
 **If the shell is dead,** the session is a compositor and a wallpaper and the only symptom is
 silence: no bar, no notifications, no lock, and `pkexec` hangs rather than failing. `$mod+Return`
 still opens a terminal — that binding is in `/etc/sway/config` and does not go through the shell.
@@ -214,7 +218,8 @@ the image (`**.md`, `dotfiles/**` and `verify.sh` are ignored), on pull requests
 - **The settings GUI outranks this repo.** noctalia merges its defaults, then
   `~/.config/noctalia/*.toml`, then `~/.local/state/noctalia/settings.toml` — and the last is
   written by clicking in the settings window and wins. `verify.sh` reports that file if it exists;
-  deleting it hands control back.
+  deleting it hands control back — and also re-enables the bar, because `$mod+period` writes
+  `bar.<name>.enabled` into the same file.
 - **A rollback restores the image, not `dotfiles/`.** The two roll back separately and neither
   knows about the other.
 - **`$mod+1`..`0` is per-screen.** Every screen owns ten workspaces by its left-to-right position —
