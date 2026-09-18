@@ -250,6 +250,112 @@ check-shell-config:
     print(f"  palette: {len(g)} roles agree with the greeter")
     PY
 
+# Apps live outside the image, so a reinstall would lose every one you added by hand.
+[doc('Reconcile installed flatpaks with flatpaks.list. Idempotent.')]
+install-flatpaks:
+    #!/usr/bin/bash
+    set -euo pipefail
+    list="{{justfile_directory()}}/flatpaks.list"
+
+    [[ -r "$list" ]] || { echo "no flatpaks.list at $list" >&2; exit 1; }
+
+    want=() drop=() section=""
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        line="${line//[[:blank:]]/}"
+        [[ -n "$line" ]] || continue
+        case "$line" in
+            "[install]") section=want; continue ;;
+            "[remove]")  section=drop; continue ;;
+        esac
+        case "$section" in
+            want) want+=("$line") ;;
+            drop) drop+=("$line") ;;
+            *) echo "$list: '$line' sits before any [install] or [remove] header" >&2; exit 1 ;;
+        esac
+    done < "$list"
+
+    (( ${#want[@]} + ${#drop[@]} )) || { echo "$list lists nothing" >&2; exit 1; }
+
+    wanted=$(printf '%s\n' "${want[@]}")
+    dropped=$(printf '%s\n' "${drop[@]}")
+    have=$(flatpak list --app --columns=application | sort -u)
+
+    for id in "${drop[@]}"; do
+        grep -qxF "$id" <<<"$wanted" && { echo "$list: $id is in both sections" >&2; exit 1; }
+    done
+
+    # Bazzite reinstalls these itself, so they never count as unlisted extras.
+    stock=$(sed 's|//.*||' /usr/share/ublue-os/bazzite/flatpak/install 2>/dev/null | grep . || true)
+
+    # One bad ID would sink the whole batch install, so check each before installing any.
+    install=() unknown=()
+    for id in "${want[@]}"; do
+        if grep -qxF "$id" <<<"$have"; then
+            echo "  ok        $id"
+        elif flatpak remote-info flathub "$id" >/dev/null 2>&1; then
+            echo "  install   $id"
+            install+=("$id")
+        else
+            echo "  unknown   $id"
+            unknown+=("$id")
+        fi
+    done
+
+    remove=()
+    for id in "${drop[@]}"; do
+        if grep -qxF "$id" <<<"$have"; then
+            echo "  remove    $id"
+            remove+=("$id")
+        else
+            echo "  gone      $id"
+        fi
+    done
+
+    if [[ ${#install[@]} -gt 0 ]]; then
+        echo
+        sudo flatpak install --system --noninteractive flathub "${install[@]}"
+    fi
+
+    if [[ ${#remove[@]} -gt 0 ]]; then
+        echo
+        sudo flatpak uninstall --system --noninteractive "${remove[@]}"
+        echo "Their runtimes stay behind until:  sudo flatpak uninstall --system --unused"
+    fi
+
+    # Read again, because the steps above changed what is installed.
+    have=$(flatpak list --app --columns=application | sort -u)
+
+    # Installed by hand and written down nowhere, so a reinstall would lose it.
+    extra=()
+    while IFS= read -r id; do
+        [[ -n "$id" ]] || continue
+        grep -qxF "$id" <<<"$wanted"  && continue
+        grep -qxF "$id" <<<"$dropped" && continue
+        grep -qxF "$id" <<<"$stock"   && continue
+        extra+=("$id")
+    done <<<"$have"
+
+    if [[ ${#extra[@]} -gt 0 ]]; then
+        echo
+        echo "Installed but not listed:"
+        printf '  %s\n' "${extra[@]}"
+        echo
+        echo "Add them to flatpaks.list, or drop them:"
+        echo "  sudo flatpak uninstall --system ${extra[*]}"
+    fi
+
+    if [[ ${#unknown[@]} -gt 0 ]]; then
+        echo >&2
+        echo "Flathub has no such app -- a typo, a rename, or denied by the image's" >&2
+        echo "flatpak-blocklist (Steam and Lutris are, since the image ships them):" >&2
+        printf '  %s\n' "${unknown[@]}" >&2
+        exit 1
+    fi
+
+    echo
+    echo "${#want[@]} listed, ${#install[@]} installed, ${#remove[@]} removed."
+
 # The only way to see the real login screen without rebooting: it runs nested in a window,
 # against a fake greetd, so log in as user/password and the sum it asks is 9.
 # Software rendering is required, because the nested compositor otherwise never draws a frame;

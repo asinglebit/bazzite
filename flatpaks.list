@@ -1,0 +1,30 @@
+# What `just install-flatpaks` keeps installed, and what it keeps off.
+# Only list what Bazzite does not already ship; its own set lives in
+# /usr/share/ublue-os/bazzite/flatpak/install and comes back on its own.
+# Steam and Lutris can never go here, because Flathub is filtered to block them.
+
+[install]
+
+# Everyday
+com.google.Chrome
+org.telegram.desktop
+org.keepassxc.KeePassXC
+md.obsidian.Obsidian
+com.interversehq.qView          # image viewer, minimal
+
+# System
+org.gnome.Firmware              # firmware updates
+io.github.DenysMb.Kontainer     # distrobox containers
+
+# Gaming and capture
+com.obsproject.Studio
+com.github.Matoking.protontricks    # winetricks for Proton prefixes
+com.vysp3r.ProtonPlus               # Proton and Wine versions
+
+[remove]
+
+# Bazzite defaults to keep off; uninstalling leaves their settings in ~/.var/app.
+org.kde.filelight               # disk usage
+com.ranfdev.DistroShelf         # distrobox GUI, Kontainer instead
+it.mijorus.gearlever            # AppImage manager
+net.davidotek.pupgui2           # ProtonUp-Qt, ProtonPlus instead

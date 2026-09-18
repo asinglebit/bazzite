@@ -25,6 +25,7 @@ Fedora 44. Sway is the only session offered.
 | `build_files/` | The build, in order: `10` desktop packages + NVIDIA env + fonts + icons, `15` swap sway for swayfx, `17` the greeter, `18` the shell, `20` greetd as DM, `30` remove Plasma, `35` `-devel` headers for an unrelated project, `40` branding, `45` patch upstream's broken `bazzite-user-setup`, `50` cosign trust |
 | `system_files/` | Copied verbatim into the image: greetd config, the greeter's wrapper and `greeter.toml`, the shell's systemd unit, tmpfiles rules, the gschema override, and the comment-only `/etc/sway/config.d/` files that retire Fedora's drop-ins |
 | `dotfiles/` | Per-user **desktop** config — outputs, input, appearance, effects, wallpaper, GTK theming, `noctalia/`. Symlinked into `~/.config`; never enters the image |
+| `flatpaks.list` | The apps this desktop adds on top of Bazzite's own set, and the defaults it takes back off. `just install-flatpaks` reconciles both; nothing here enters the image |
 | `verify.sh` | Post-boot checks: the assertions needing a running session, a GPU and a seat, which the build cannot make |
 | `.github/workflows/build.yml` | Nightly rebuild → rechunk → in-image checks → push → cosign sign → verify |
 | `cosign.pub` | Public half of the CI signing key. `cosign.key` lives only in the `SIGNING_SECRET` Actions secret |
@@ -155,6 +156,7 @@ The image carries the desktop and no per-user config.
 
 ```bash
 just link-dotfiles && swaymsg reload   # this repo's desktop config
+just install-flatpaks                  # the apps on top of Bazzite's own set
 just greeter-avatar                    # bind the login-screen avatar to this account
 just check-shell-config                # optional: validate the config as committed
 ```
@@ -163,6 +165,17 @@ just check-shell-config                # optional: validate the config as commit
 longer ships. The desktop works without it — the image retires Fedora's sway drop-ins in `/etc`, so
 a first login gets a working bar and launcher on stock defaults. What it adds is the palette, the
 monitor layout, the per-screen workspaces and the plugins.
+
+`install-flatpaks` is the apps half of the same idea, and `flatpaks.list` has two sections.
+`[install]` is what this desktop adds, system-wide from Flathub, and holds only apps Bazzite does
+not already ship — its own set, in `/usr/share/ublue-os/bazzite/flatpak/install`, is reinstalled on
+first boot and is ignored here. `[remove]` is the other direction: Bazzite defaults this desktop
+does without, which would otherwise come back on a reinstall. Uninstalling leaves `~/.var/app`
+alone, so their settings survive.
+
+Those two sections are the only things it will ever act on. An app installed by hand and written
+down nowhere is reported rather than removed, so you can add it to a section or deal with it
+yourself.
 
 `greeter-avatar` cannot be part of the image: the greeter reads the user's `IconFile` from
 AccountsService, which is per-user state under `/var`. Without it the login screen draws its stock
