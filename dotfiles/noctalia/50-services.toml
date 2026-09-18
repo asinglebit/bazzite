@@ -42,8 +42,7 @@ cpu_temp_critical_threshold  = 85.0
 ram_pct_activity_threshold   = 85.0
 ram_pct_critical_threshold   = 95.0
 
-# Left empty on purpose: the thermal zones get renumbered by the kernel, so a written-down
-# path would quietly start reading the wrong sensor. noctalia finds it and verify.sh says which.
+# Left empty, because the kernel renumbers thermal zones and a written path reads the wrong sensor.
 cpu_temp_sensor_path = ""
 
 cpu_poll_seconds    = 10.0
@@ -76,9 +75,8 @@ sidebar             = "compact"
     [[control_center.shortcuts]]
     type = "dark_mode"
 
-# auto_update stays "none": a shell that updates itself in the background is no longer
-# the thing the commit says it is. Installing when asked is fine, which is what `enabled` does.
-# Only bazzite-sway is in this repo; the other five are fetched at first use and cached outside the image.
+# auto_update stays "none", because a shell that updates itself is no longer what the commit says.
+# Only bazzite-sway is in this repo; the other five are fetched at first use.
 [plugins]
 auto_update = "none"
 enabled     = [

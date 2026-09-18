@@ -1,22 +1,6 @@
-# THE VALUES GTK ACTUALLY USES. dotfiles/gtk-3.0/settings.ini names the theme,
-# icon theme, cursor theme and UI font, and on Wayland GTK ignores all four --
-# it takes them from the XDG portal, which answers out of
-# org.gnome.desktop.interface in dconf and wins over settings.ini for every key
-# it serves, silently. Measured before this file existed: settings.ini asked for
-# adw-gtk3-dark / Papirus-Dark / Adwaita / Inter and GTK reported Adwaita /
-# breeze-dark / breeze_cursors / Noto Sans.
-#
-# In the image because the desktop must come up correct before any dotfiles repo
-# is cloned.
-#
-# THIS SETS THE DEFAULT. A key a user has explicitly written still wins, which is
-# exactly how the Breeze and Noto values survived Plasma's removal --
-# kde-gtk-config wrote them into dconf, where 30-kde-remove.sh could not follow.
-# `dconf reset` hands control back to this file; verify.sh reports each key still
-# overridden and prints the line.
-#
-# color-scheme is the single signal libadwaita, Qt (via
-# QT_QPA_PLATFORMTHEME=xdgdesktopportal), Firefox, Chromium and Electron follow.
+# The values GTK actually uses: on Wayland it ignores settings.ini and asks the portal.
+# In the image, because the desktop must come up correct before any dotfiles repo is cloned.
+# Only a default, so a key written into dconf still wins until `dconf reset`.
 
 [org.gnome.desktop.interface]
 gtk-theme='adw-gtk3-dark'
@@ -24,10 +8,7 @@ icon-theme='Papirus-Dark'
 cursor-theme='Adwaita'
 color-scheme='prefer-dark'
 
-# The same split dotfiles/fontconfig/fonts.conf makes. The mono face is no
-# longer load-bearing for the desktop, only for the terminal: noctalia ships its
-# own icon font, so the remaining consumers are ghostty and whatever asks GTK
-# for a monospace font.
+# The mono face is only for the terminal now, since noctalia ships its own icon font.
 font-name='Inter 10'
 document-font-name='Inter 10'
 monospace-font-name='Hack Nerd Font Mono 10'

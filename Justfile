@@ -1,6 +1,6 @@
 # Bazzite + Sway — local image build and deploy.
 #
-# Typical first run:
+# First run:
 #   just insurance      # pin the current deployment, stop the auto-updater
 #   just build
 #   just switch
@@ -24,16 +24,13 @@ insurance:
     rpm-ostree status
     ostree admin status
 
-# The one build path, used by `just build` and by CI.
-# An empty registry means a local unsigned build; CI passes `newer` so a nightly rebuild
-# cannot sit on a stale base forever.
-# The ctx digest is what makes podman notice an edited build script; without it the build
-# says "Using cache" and quietly tags the previous image again.
+# An empty registry means a local unsigned build.
 [doc('Parameterised build. `just build` and CI both go through here.')]
 build-image tag="sway" registry="" pull="missing":
     #!/usr/bin/bash
     set -euo pipefail
     cd "{{justfile_directory()}}"
+    # Without this podman says "Using cache" and re-tags the previous image.
     ctx_digest=$(find build_files system_files cosign.pub -type f -print0 \
         | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
     echo "ctx digest: ${ctx_digest}"
@@ -43,10 +40,9 @@ build-image tag="sway" registry="" pull="missing":
         --build-arg CTX_DIGEST="${ctx_digest}" \
         -t {{image}}:{{tag}} .
 
-# The image. Plasma removed, SwayFX and noctalia-greeter in its place. Tag: :sway
+# Plasma removed, SwayFX and noctalia-greeter in its place.
 build: (build-image "sway")
 
-# Only needed if `switch` fails with "Missing ostree.final-diffid".
 [doc('Rechunk a built tag locally. Only for the Missing ostree.final-diffid bug.')]
 rechunk tag="sway":
     sudo rpm-ostree compose build-chunked-oci \
@@ -54,16 +50,14 @@ rechunk tag="sway":
         --from {{image}}:{{tag}} \
         --output containers-storage:{{image}}:{{tag}}
 
-# The same thing on a machine with no rpm-ostree, by running it out of the image just built.
-# This is what keeps a nightly update in the hundreds of MB rather than several GB.
+# Keeps a nightly update in the hundreds of MB rather than several GB.
 [doc('Rechunk without a host rpm-ostree, for CI runners.')]
 rechunk-ci tag="sway":
     #!/usr/bin/bash
     set -euxo pipefail
     src="{{image}}:{{tag}}"
 
-    # Rechunking drops every label, so carry them over; the ostree ones are regenerated
-    # and re-applying stale ones causes the very bug this recipe exists to fix.
+    # Rechunking drops every label, so carry them over -- bar the ostree ones, which are regenerated.
     labels=()
     while IFS= read -r kv; do
         [[ -n "$kv" ]] && labels+=(--label "$kv")
@@ -95,9 +89,7 @@ rechunk-ci tag="sway":
           and (.["org.opencontainers.image.source"] | startswith("https://github.com/"))
     ' >/dev/null
 
-# Points the system at a built tag; reboot afterwards.
-# `switch` only compares the image name, so rebuilding the same tag says "unchanged"
-# and stages the old build; falling through to `upgrade` picks up the new one.
+# Rebuilding the same tag says "unchanged", so fall through to upgrade for the new digest.
 [doc('Point the system at a locally built tag. Reboot afterwards.')]
 switch tag="sway":
     #!/usr/bin/bash
@@ -123,8 +115,7 @@ rollback:
 restore:
     sudo bootc switch ostree-image-signed:docker://ghcr.io/ublue-os/bazzite-nvidia-open:stable
 
-# CI rebuilds nightly, so these are also how kernel and driver updates arrive.
-# Nothing fetches on its own; there is no timer and no update agent.
+# CI rebuilds nightly, and nothing here fetches on its own -- no timer, no update agent.
 
 # Is there anything new? Metadata only, nothing downloaded.
 update-check:
@@ -143,13 +134,11 @@ update:
 update-now:
     sudo bootc upgrade --apply
 
-# Points at the published image and checks its signature on every pull from then on.
 [doc('Point the system at the published image, verifying its signature.')]
 switch-remote tag="sway":
     sudo bootc switch ostree-image-signed:docker://{{registry}}/{{image_name}}:{{tag}}
 
-# One time only: the very first switch onto GHCR, which cannot be verified because
-# the trust to verify it with is inside the image being installed. Use switch-remote after.
+# Unverifiable, because the key to verify it with is inside the image being installed.
 [doc('One-time unverified first switch onto GHCR. Use switch-remote after.')]
 bootstrap-remote tag="sway":
     sudo bootc switch {{registry}}/{{image_name}}:{{tag}}
@@ -161,14 +150,11 @@ status:
     @echo
     @ostree admin status
 
-# Drops build layers only; the OS keeps its deployments somewhere else entirely.
 [doc('Drop local build layers. Does NOT touch the OS or its deployments.')]
 clean:
     sudo podman image prune -af
 
-# Symlinks dotfiles/ into ~/.config, mirroring the tree.
-# Kept out of the image so that changing a monitor is a `swaymsg reload` and not a rebuild.
-# Idempotent: anything already in the way is backed up with a timestamp.
+# Out of the image, so changing a monitor is a reload and not a rebuild.
 [doc('Symlink dotfiles/ into ~/.config. Idempotent; backs up anything in the way.')]
 link-dotfiles:
     #!/usr/bin/bash
@@ -195,11 +181,8 @@ link-dotfiles:
         echo "  linked    $rel"
     done < <(find "$src" -type f -print0 | sort -z)
 
-    # Removes links this repo used to ship: untidy in most places, but fatal in
-    # sway/config.d/, where a dangling link stops sway loading at all.
-    # Only links pointing back into this repo are touched, which is what makes it safe.
-    # Both paths are resolved first, because /home is itself a symlink here and the
-    # naive comparison matched nothing.
+    # A link this repo no longer ships is fatal in sway/config.d/, where sway stops loading.
+    # Resolve both, because /home is itself a symlink and the naive compare matched nothing.
     src_real="$(readlink -f "$src")"
     while IFS= read -r -d '' link; do
         tgt_real="$(readlink -m "$(readlink "$link")")"
@@ -208,16 +191,13 @@ link-dotfiles:
         echo "  pruned    ${link#"$dest"/}"
     done < <(find "$dest" -xtype l -print0 2>/dev/null)
 
-    # And the directories they lived in, but only if empty, so nothing of yours is at risk.
+    # Their directories too, but only if empty.
     find "$dest" -mindepth 1 -type d -empty -delete 2>/dev/null || true
 
     echo
     echo "Apply:  swaymsg reload"
 
-# Validates the shell config as committed rather than as deployed.
-# A recipe rather than a build check, because the image build cannot see dotfiles/.
-# Pointed at a throwaway state directory on purpose: the settings GUI writes a file that
-# outranks everything here, and that would hide whether the commit itself is valid.
+# A throwaway state dir, because the settings GUI writes a file that outranks the commit.
 [doc('Validate dotfiles/noctalia as committed, ignoring GUI overrides.')]
 check-shell-config:
     #!/usr/bin/bash

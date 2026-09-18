@@ -71,8 +71,7 @@ rpm -q noctalia
 test -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
 # A different product from the shell above, sharing only a name and a palette.
 rpm -q noctalia-greeter
-# These must STAY installed: they are retired by config instead, and a retirement file
-# for a package that is gone looks exactly like one that is working.
+# These must stay installed, because a retirement file for a missing package looks like it works.
 rpm -q waybar swaylock swayidle grimshot lxqt-policykit
 # The ones that genuinely went, so a deliberate removal stays distinguishable from an accident.
 ! rpm -q SwayNotificationCenter
@@ -82,7 +81,7 @@ rpm -q waybar swaylock swayidle grimshot lxqt-policykit
 ! rpm -q cliphist
 ! rpm -q swappy
 ! rpm -q mate-polkit
-# Nothing removes these any more, and "the script is gone" is not the same claim as "they are gone".
+# Nothing removes these any more, so assert they are actually gone.
 ! rpm -q hyprlock
 ! rpm -q hypridle
 test ! -f /etc/yum.repos.d/_copr_scottames-hypr.repo

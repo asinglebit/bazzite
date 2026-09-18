@@ -1,38 +1,28 @@
 #!/usr/bin/bash
 # The login screen, which brings its own compositor so it can scale per monitor.
-# A text console cannot: its font is a fixed bitmap, so the same text is twice the size
-# on one of these screens as the other.
-# The cost is that a failure here is a black screen, so tuigreet stays installed as the
-# fallback, switched on in /etc/greetd/config.toml.
+# A failure here is a black screen, so tuigreet stays installed as the fallback.
 set -euxo pipefail
 
 CTX="${CTX:-/ctx}"
 
-# The base image already trusts Terra, so this adds no new trust root.
 # Its own transaction, because Terra also carries wlroots and mesa and must not satisfy those.
-# fakegreet stands in for greetd so the greeter can be run inside a live session; see the end of this file.
+# fakegreet stands in for greetd, so the greeter can run inside a live session.
 dnf5 --enable-repo=terra install -y noctalia-greeter
 dnf5 install -y greetd-fakegreet
 
-# A wrapper, because the greeter's compositor inherits none of sway's driver settings
-# and there is nowhere else to put them back.
+# The greeter's compositor inherits none of sway's driver settings, so a wrapper puts them back.
 install -Dpm0755 "${CTX}/system_files/usr/libexec/noctalia-greeter-nvidia" \
                  /usr/libexec/noctalia-greeter-nvidia
 
-# Shipped here rather than where the greeter reads it, because /var only gets written
-# on a fresh install; tmpfiles.d copies it into place on every boot instead.
+# /var is only written on a fresh install, so tmpfiles.d copies this into place each boot.
 install -Dpm0644 "${CTX}/system_files/usr/share/factory/var/lib/noctalia-greeter/greeter.toml" \
                  /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
 
-# The greeter would look for an avatar inside your home directory, which it cannot read,
-# so the image ships one somewhere world-readable instead; `just greeter-avatar` points at it.
-# SVG rather than PNG, so it scales like everything else on this screen.
+# The greeter cannot read your home, so the avatar ships somewhere world-readable.
 install -Dpm0644 "${CTX}/system_files/usr/share/bazzite-sway/greeter-avatar.svg" \
                  /usr/share/bazzite-sway/greeter-avatar.svg
 
-# Without this SELinux line the greeter cannot write its own state directory, and the
-# login screen comes up blank. One alias borrows greetd's existing rule, needing no policy module.
-# Edited by hand because the proper command writes into /var, which a bootc image does not keep.
+# Without this the greeter cannot write its state directory and the login screen comes up blank.
 SUBS=/etc/selinux/targeted/contexts/files/file_contexts.subs
 if ! grep -q '^/var/lib/noctalia-greeter /var/lib/greetd$' "${SUBS}" 2>/dev/null; then
     printf '/var/lib/noctalia-greeter /var/lib/greetd\n' >> "${SUBS}"
@@ -50,7 +40,7 @@ test -x /usr/libexec/noctalia-greeter-nvidia
 grep -q 'noctalia-greeter-session' /usr/libexec/noctalia-greeter-nvidia
 grep -q 'WLR_RENDERER:=gles2'      /usr/libexec/noctalia-greeter-nvidia
 
-# The assets tree is required at runtime; without it the greeter loses its fonts and icons.
+# Without the assets tree the greeter loses its fonts and icons.
 test -d /usr/share/noctalia-greeter/assets
 
 # A config that failed to install would not break the build, it would just look wrong.
@@ -83,14 +73,11 @@ assert cfg["appearance"]["font_family"] == "Inter"
 assert "output" not in cfg, "greeter.toml has an [output] block -- scale is derived, not declared"
 TOMLCHECK
 
-# The one thing the build can actually run, since listing sessions needs no screen.
-# An empty list would be a login screen with nothing to log into.
 # Plasma is still installed at this point, so this only checks that Sway is offered.
 greeter_sessions="$(noctalia-greeter sessions)"
 [[ "${greeter_sessions}" == *Sway* ]]
 
-# The greeter and sway need different wlroots versions and are meant to coexist,
-# so the last line catches anything that moves sway onto the greeter's.
+# The greeter and sway need different wlroots versions and are meant to coexist.
 greeter_libs="$(ldd /usr/bin/noctalia-greeter-compositor)"
 [[ "${greeter_libs}" == *libwlroots-0.20.so* ]]
 [[ "${greeter_libs}" == *libEGL*             ]]
@@ -114,9 +101,6 @@ grep -q '^/var/lib/noctalia-greeter /var/lib/greetd$' \
 greeter_state_context="$(matchpathcon /var/lib/noctalia-greeter)"
 [[ "${greeter_state_context}" == *xdm_var_lib_t* ]]
 
-# What none of this can check is whether the greeter agrees those are its keys: it has no
-# validate mode, and a misspelled key is ignored in silence. `just greeter-preview` runs the
-# real greeter nested in a live session, and verify.sh checks the rest after boot.
-# Do not add a build-time check here that only appears to work.
+# The greeter has no validate mode and ignores a misspelled key in silence, so `just greeter-preview` is the real check.
 
 echo "greeter: $(rpm -q noctalia-greeter), fallback: $(rpm -q tuigreet)"

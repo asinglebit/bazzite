@@ -1,15 +1,11 @@
 #!/bin/sh
-# Turns the bar off the way noctalia's settings window does -- `enabled = false` --
-# rather than hiding it. A hidden bar keeps its layer surface, and SwayFX goes on
-# blurring that surface, so the strip stays frosted with nothing drawn in it;
-# disabled, the surface is gone and the top edge is just the wallpaper again.
+# Turns the bar off with `enabled = false` rather than hiding it, because a hidden bar
+# keeps its layer surface and SwayFX goes on blurring an empty strip.
 #
 #   noctalia-bar-toggle.sh         -- flip every bar in `order`, bound to $mod+period
 #   noctalia-bar-toggle.sh print   -- say which bars are on, change nothing
 #
-# It writes the same file the settings window writes. noctalia watches that file
-# and applies the change within a second, so the setting outlives a restarted
-# shell -- unlike `noctalia msg bar-toggle`, which is runtime only.
+# It writes the same file the settings window writes, so the change outlives a restarted shell.
 
 set -eu
 
@@ -20,9 +16,7 @@ esac
 
 state="${XDG_STATE_HOME:-$HOME/.local/state}/noctalia/settings.toml"
 
-# Read the effective value rather than that file, because settings.toml only holds
-# what differs from ~/.config/noctalia/*.toml: a bar nobody has touched has no
-# `enabled` key anywhere, and the default is on.
+# Read the effective value, because settings.toml only holds what differs from the config.
 bars=$(noctalia config export full | awk '
     /^[[:space:]]*\[/ {
         tbl = $0
@@ -31,8 +25,7 @@ bars=$(noctalia config export full | awk '
         collecting = 0
         next
     }
-    # The exporter wraps a long array over several lines, so read `order` to its
-    # closing bracket instead of off the one line.
+    # The exporter wraps long arrays, so read `order` to its closing bracket.
     tbl == "bar" && /^[[:space:]]*order[[:space:]]*=/ { collecting = 1 }
     collecting {
         n = split($0, q, "\"")
@@ -56,17 +49,14 @@ if [ "$mode" = print ]; then
     exit 0
 fi
 
-# noctalia writes settings.toml itself on first run, so a missing one means the shell
-# has never started; inventing it here would guess at the config_version it stamps on top.
+# A missing settings.toml means the shell never started, and inventing one would guess its version.
 [ -f "$state" ] || { echo "${0##*/}: $state does not exist -- start noctalia once" >&2; exit 1; }
 
-# One bar still on is enough to make the keypress mean "off", so a half-and-half
-# state collapses to all-off on the first press and all-on on the second.
+# One bar still on makes the keypress mean "off", so a mixed state collapses to all-off first.
 if echo "$bars" | grep -qv ' off$'; then val=false; else val=true; fi
 names=$(echo "$bars" | cut -d' ' -f1 | tr '\n' ' ')
 
-# A rename rather than an edit in place, because noctalia is watching: a half-written
-# file is a parse error that costs the whole settings layer.
+# A rename, not an edit in place, because noctalia watches and a half-written file is a parse error.
 tmp=$(mktemp "$state.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 awk -v names="$names" -v val="$val" '

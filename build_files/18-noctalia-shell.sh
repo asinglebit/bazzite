@@ -9,8 +9,7 @@ CTX="${CTX:-/ctx}"
 install -Dpm0644 "${CTX}/system_files/usr/lib/systemd/user/noctalia.service" \
                  /usr/lib/systemd/user/noctalia.service
 
-# The symlink is shipped directly, because the usual enable command writes to /etc and
-# presets only apply to users created afterwards.
+# Shipped directly, because the enable command writes to /etc and presets miss existing users.
 install -d /usr/lib/systemd/user/sway-session.target.wants
 ln -sfn ../noctalia.service \
     /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
@@ -21,8 +20,7 @@ test -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
 grep -q '^ExecStart=/usr/bin/noctalia$' /usr/lib/systemd/user/noctalia.service
 
 # Retires the Fedora drop-ins that start programs this image cannot uninstall.
-# They go in /etc rather than dotfiles/ because only /etc exists at first login,
-# and deleting one is the supported way back to Fedora's bar or locker.
+# In /etc rather than dotfiles/, because only /etc exists at first login.
 install -d /etc/sway/config.d
 for f in 90-bar.conf 90-swayidle.conf 95-autostart-policykit-agent.conf \
          60-bindings-screenshot.conf 60-bindings-volume.conf \
@@ -44,24 +42,20 @@ test -d /usr/share/noctalia/assets
 test -d /usr/share/noctalia/assets/templates
 test -d /usr/share/noctalia/assets/translations
 
-# The shell and greeter are unrelated packages that could one day claim the same file,
-# which would break the login screen, so check they still share none.
+# Two unrelated packages claiming the same file would break the login screen.
 noctalia_files="$(rpm -ql noctalia   | grep -v '^/usr/lib/\.build-id' | sort)"
 greeter_files="$(rpm -ql noctalia-greeter | grep -v '^/usr/lib/\.build-id' | sort)"
 [[ -z "$(comm -12 <(printf '%s\n' "${noctalia_files}") \
                   <(printf '%s\n' "${greeter_files}"))" ]]
 
-# Each of these is a package this image removed because noctalia does the same job,
-# and if one stops being true the desktop still boots and then quietly cannot do it:
-# no password prompt, no wifi password dialog, no bluetooth pairing.
+# noctalia replaced a package for each of these, and losing one is silent until you need it.
 grep -aq 'libpolkit-agent-1.so.0'                     /usr/bin/noctalia
 grep -aq '/org/noctalia/PolkitAuthenticationAgent'    /usr/bin/noctalia
 grep -aq 'org.freedesktop.NetworkManager.SecretAgent' /usr/bin/noctalia
 grep -aq 'org.bluez.Agent1'                           /usr/bin/noctalia
 grep -aq 'org.freedesktop.Notifications'              /usr/bin/noctalia
 
-# The tray has to register as a StatusNotifier host, because a Fedora drop-in waits for one
-# before starting autostart apps, and without it the session silently loses its keyring.
+# A Fedora drop-in waits for a tray host before autostart, so without it the keyring never starts.
 grep -aq 'org.kde.StatusNotifierHost'                 /usr/bin/noctalia
 grep -aq 'RegisterStatusNotifierHost'                 /usr/bin/noctalia
 
@@ -74,9 +68,7 @@ noctalia_libs="$(ldd /usr/bin/noctalia)"
 [[ "${noctalia_libs}" == *libGLESv2*  ]]
 [[ "${noctalia_libs}" == *libwayland-client* ]]
 
-# Proves the config validator actually works, in both directions, which is what makes
-# verify.sh's use of it mean anything. If this ever fails, move it to verify.sh rather
-# than weakening it to `|| true`, which would report success for a validator that never ran.
+# Proves the validator works in both directions, which is what makes verify.sh's use of it mean anything.
 validate_dir="$(mktemp -d)"
 cat > "${validate_dir}/good.toml" <<'GOOD'
 [bar.default]

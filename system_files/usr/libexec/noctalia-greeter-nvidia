@@ -1,33 +1,14 @@
 #!/usr/bin/sh
-# The greeter's environment. What start-sway is to the session, this is to the
-# login screen: the bundled compositor is a separate wlroots instance started by
-# greetd, so it inherits NONE of /etc/sway/environment.
-#
-# WHY A WRAPPER AND NOT A DROP-IN. greetd builds the session's environment
-# itself, so Environment= in a greetd.service drop-in does not reach the
-# greeter, and env assignments inside greetd's TOML are not valid there either.
-# A wrapper on the `command =` line is what is left.
-#
-# ASSIGNED, NOT FORCED. `:=` leaves an inherited value alone, which is what lets
-# `just greeter-preview` run this exact file nested inside a live session with
-# WLR_BACKENDS=wayland rather than taking over a display.
+# The greeter's compositor is its own wlroots instance and inherits none of /etc/sway/environment.
+# A wrapper rather than a drop-in, because greetd builds the session environment itself.
+# `:=` leaves an inherited value alone, so `just greeter-preview` can run this same file nested.
 
-# NOT for the session's reason: there WLR_RENDERER=gles2 is a SwayFX constraint.
-# Here it is about the GPU -- gles2 is the only renderer this image has proven on
-# nvidia-open, and upstream's fallback for NVIDIA swapchain errors has "nothing
-# is displayed" as its symptom (noctalia-greeter PR #28).
+# gles2 is the only renderer proven on nvidia-open, and the fallback displays nothing at all.
 : "${WLR_RENDERER:=gles2}"
 export WLR_RENDERER
 
-# NOT SET, deliberately:
-#
-#   --unsupported-gpu  sway's own guard, not a wlroots one. The bundled
-#                      compositor has no such check.
-#   -D noscanout       also sway's. The wlroots-level equivalent, if the login
-#                      screen shows black frames or tearing, is
-#                      WLR_DRM_NO_MODIFIERS=1 -- it belongs here, not in
-#                      /etc/sway/environment, which this process never reads.
-#   WLR_BACKENDS       left to autodetect, so this works both on VT 1 (DRM) and
-#                      nested under a session.
+# Deliberately unset: --unsupported-gpu and -D noscanout are sway guards this compositor lacks.
+# WLR_BACKENDS is left to autodetect, so this works on VT 1 and nested alike.
+# For black frames or tearing here, the wlroots equivalent is WLR_DRM_NO_MODIFIERS=1.
 
 exec /usr/bin/noctalia-greeter-session "$@"

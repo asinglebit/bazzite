@@ -5,9 +5,7 @@ set -euxo pipefail
 CTX="${CTX:-/ctx}"
 
 # Optional dependencies are off in this base image, so everything needed must be named here.
-# sway-config-fedora cannot be dropped and drags in waybar, swaylock and others; they are
-# retired by config in 18-noctalia-shell.sh rather than excluded, since excluding a hard
-# dependency would just fail the build.
+# sway-config-fedora drags in waybar and swaylock, which config retires rather than excludes.
 dnf5 --exclude=sway-config-upstream,rofi install -y \
     sway \
     sway-config-fedora \
@@ -44,9 +42,7 @@ dnf5 --exclude=sway-config-upstream,rofi install -y \
 rpm -q noctalia
 test -x /usr/bin/noctalia
 
-# ghostty comes from Terra, which the base image already trusts.
 # Its own transaction, so Terra cannot quietly satisfy anything in the list above.
-# The terminfo package matters: without it every ssh session misbehaves in confusing ways.
 dnf5 --enable-repo=terra install -y ghostty
 
 rpm -q ghostty ghostty-terminfo
@@ -57,8 +53,7 @@ test -f /usr/share/terminfo/x/xterm-ghostty
 # foot stays as a fallback terminal, because losing the only terminal is a bad way to find a bug.
 rpm -q foot
 
-# Hack Nerd Font, downloaded because no trusted repo carries it.
-# Pinned by version and checksum, since this is one of only two things here not from a signed repo.
+# Downloaded because no trusted repo carries it, so it is pinned by checksum.
 NERD_FONTS_VERSION=3.5.1
 HACK_SHA256=cdd389472e10e2261520140ff1b382b4f8a226af5fd0b2735b975d31151d9c3c
 
@@ -83,8 +78,7 @@ test -d /usr/share/themes/adw-gtk3-dark
 test -d /usr/share/icons/Papirus-Dark
 fc-list -q 'Inter'
 
-# Installing a theme is not choosing it: on Wayland GTK ignores settings.ini and asks the
-# portal, which answers from dconf, where Plasma left its own values behind.
+# On Wayland GTK ignores settings.ini and asks the portal, which answers from dconf.
 install -Dpm0644 "${CTX}/system_files/usr/share/glib-2.0/schemas/90-bazzite-sway.gschema.override" \
                  /usr/share/glib-2.0/schemas/90-bazzite-sway.gschema.override
 glib-compile-schemas /usr/share/glib-2.0/schemas/
@@ -105,8 +99,7 @@ font-name Inter 10
 monospace-font-name Hack Nerd Font Mono 10
 KEYS
 
-# Black folder icons, pinned like the font above.
-# It has to run during the build, because it edits a directory that is read-only later.
+# Runs during the build, because it edits a directory that is read-only later.
 PAPIRUS_FOLDERS_VERSION=1.14.0
 PAPIRUS_FOLDERS_SHA256=b30a6848a00690302accffc050549218b0b114d3178b28bd3a16891817821b06
 
@@ -115,8 +108,7 @@ curl -fsSL -o /tmp/papirus-folders \
 echo "${PAPIRUS_FOLDERS_SHA256}  /tmp/papirus-folders" | sha256sum -c -
 chmod +x /tmp/papirus-folders
 
-# Papirus, never Papirus-Dark: only the light package actually ships the colour variants,
-# and the dark one inherits them, so recolouring the parent is what works.
+# Papirus, never Papirus-Dark: only the light package ships the colour variants.
 papirus_colours="$(/tmp/papirus-folders -t Papirus -l)"
 grep -qw black <<<"${papirus_colours}"
 
@@ -130,18 +122,14 @@ test -L /usr/share/icons/Papirus/48x48/places/folder.svg
 
 rm -f /tmp/papirus-folders
 
-# Runs on every build, so an icon update is re-blackened; rpm reporting these as modified is this, not damage.
+# rpm reports these icons as modified, which is this script, not damage.
 
 
-# Edited in place rather than overridden later, because sway reads $term before it
-# ever gets to the drop-in directory, so setting it there would do nothing.
+# sway reads $term before the drop-in directory, so a drop-in would do nothing.
 sed -i 's|^set \$term foot$|set $term ghostty|' /etc/sway/config
 grep -q '^set \$term ghostty$' /etc/sway/config
 
-# The password prompt is noctalia's, for three reasons: the obvious choice is broken on F44,
-# every packaged agent is skipped because this desktop is called "sway", and the one that
-# sway starts anyway is shadowed to nothing in /etc/sway/config.d/.
-# A missing agent is silent until something calls pkexec, and then it hangs.
+# noctalia is the only polkit agent here, and a missing one hangs pkexec silently.
 
 # This autostart entry is X11-only and fails on every login, so hide it properly.
 if [[ -f /etc/xdg/autostart/nvidia-settings-load.desktop ]]; then
@@ -165,11 +153,10 @@ test -f /usr/share/xdg-desktop-portal/sway-portals.conf
 cat >> /etc/sway/environment <<'ENVEOF'
 
 ### Bazzite-Sway: NVIDIA (nvidia-open, Ada) ####################################
-# Required: sway refuses to start on this driver without the first flag, and the second
-# is the standard fix for flicker and black frames on NVIDIA.
+# sway refuses to start on this driver without the first flag; the second fixes NVIDIA flicker.
 SWAY_EXTRA_ARGS="$SWAY_EXTRA_ARGS --unsupported-gpu -D noscanout"
 
-# GLES2 because SwayFX draws all its effects there; on Vulkan it starts and draws none of them.
+# On Vulkan SwayFX starts and draws none of its effects.
 WLR_RENDERER=gles2
 
 # Hardware video decoding.
@@ -179,7 +166,6 @@ NVD_BACKEND=direct
 # Electron apps run on Wayland rather than Xwayland.
 ELECTRON_OZONE_PLATFORM_HINT=auto
 
-# Two more are deliberately unset: GBM_BACKEND is obsolete, and the cursor workaround
-# is only needed if the cursor actually misbehaves.
+# GBM_BACKEND is deliberately unset, because it is obsolete.
 ################################################################################
 ENVEOF

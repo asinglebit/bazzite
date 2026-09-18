@@ -7,9 +7,7 @@ custom_palette = "bazzite-grey"
 mode           = "dark"
 shell_mode     = "dark"
 
-# Templates off because they do not just write a file: the gtk one edits this git tree
-# through the symlink, and the sway one creates ~/.config/sway/config, which would
-# shadow /etc/sway/config and leave a session with no bindings at all.
+# Templates off, because the gtk one edits this git tree and the sway one shadows /etc/sway/config.
 [theme.templates]
 enable_builtin_templates   = false
 enable_community_templates = false

@@ -1,7 +1,6 @@
 #!/usr/bin/bash
-# Swaps sway for SwayFX, which is a true drop-in: same version, same /usr/bin/sway path,
-# so start-sway, greetd and swaymsg all keep working.
-# Fedora's sway config package is deliberately left in place, since swayfx needs it.
+# Swaps sway for SwayFX, a drop-in at the same path, so everything pointing at it keeps working.
+# Fedora's sway config package stays, because swayfx needs it.
 set -euxo pipefail
 
 CTX="${CTX:-/ctx}"
@@ -39,8 +38,7 @@ sway_libs="$(ldd /usr/bin/sway)"
 # The binary has to sit at sway's own path, or everything pointing at it breaks.
 test -x /usr/bin/sway
 
-# A staleness tripwire: swayfx needs an old wlroots that Fedora still ships but will drop one day,
-# and that day should fail the nightly build rather than ship a desktop that cannot start.
+# swayfx needs an old wlroots that Fedora will drop one day, and that day must fail the build.
 [[ "${sway_libs}" == *libwlroots-0.19.so* ]]
 
 # Removing sway must not have taken the config packages with it.
@@ -52,7 +50,6 @@ test -f /usr/share/wayland-sessions/sway.desktop
 
 grep -q '^set \$term ghostty$' /etc/sway/config
 
-# The config is NOT validated here, and do not add that back: in a container a good config
-# and a broken one both fail identically, so the check would prove nothing. verify.sh does it.
+# No config validation here: in a container a good and a broken config fail identically.
 
 echo "swayfx installed: $(rpm -q swayfx), providing $(rpm -q --provides swayfx | grep -m1 '^sway ')"

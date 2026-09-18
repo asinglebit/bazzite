@@ -1,19 +1,9 @@
-# Rebuild bazzite-sway against current upstream Bazzite, publish to GHCR, sign
-# with cosign.
-#
-# The image this produces is the one `just update` pulls. There is one of it,
-# tagged :sway -- Plasma is always removed, and the login screen is
-# noctalia-greeter rather than a session picker with two desktops in it.
-#
-# There is deliberately no :latest. Deployments track the :sway ref, so a bare
-# `bootc switch ghcr.io/<owner>/bazzite-sway` resolving to some other tag would
-# be a silent change of what the machine follows. Without the tag the pull fails
-# and you are told to name what you meant.
+# Nightly rebuild against upstream Bazzite, pushed to GHCR and signed.
+# Only :sway exists, so an untagged ref fails instead of silently following something else.
 name: Build and publish
 
 on:
-  # Upstream Bazzite rebuilds daily. This is what makes the image track it
-  # without anyone remembering to run `just build`.
+  # Upstream rebuilds daily, so this tracks it without anyone running a build.
   schedule:
     - cron: '0 12 * * *'
   push:
@@ -31,7 +21,6 @@ on:
 env:
   IMAGE_NAME: bazzite-sway
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
-  # One variant. Was a build matrix over REMOVE_KDE=0/1 and :plasma/:sway.
   IMAGE_TAG: sway
 
 concurrency:
@@ -46,17 +35,13 @@ jobs:
     permissions:
       contents: read      # checkout
       packages: write     # push to ghcr.io
-      # No id-token: signing is with a key, not keyless, so no OIDC is needed.
+      # No id-token: signing uses a key, not keyless OIDC.
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Fails in seconds rather than after a 40-minute build. Worse than the
-      # wasted time: without this the run would build, rechunk and push
-      # successfully and only fall over at the signing step, leaving an
-      # UNSIGNED image on GHCR that the policy baked into it will refuse on
-      # every later `bootc upgrade`.
+      # Without this the run pushes an UNSIGNED image that every later upgrade refuses.
       - name: Check the signing secret exists
         if: github.event_name != 'pull_request'
         env:
@@ -68,12 +53,7 @@ jobs:
           fi
           echo "SIGNING_SECRET is present"
 
-      # The base image extracts to ~13 GB, and rpm-ostree's rechunk writes two
-      # further full copies (its /var/tmp ostree repo, then the chunked output),
-      # so peak demand is around 40 GB. This action takes / from ~20 GB free to
-      # ~50 GB, and extra-squeeze adds ~6 GB more by also dropping
-      # /opt/hostedtoolcache and miniconda. Everything stays on / -- the runner's
-      # temp disk is documented at 14 GB, smaller than the base image alone.
+      # The build peaks near 40 GB and the runner starts with about 20 GB free.
       - name: Free up disk space
         uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
         with:
@@ -82,16 +62,12 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
 
-      # GHCR rejects a mixed-case path; github.repository_owner is not
-      # guaranteed lowercase.
+      # GHCR rejects mixed-case paths and the owner name may have capitals.
       - name: Resolve registry
         id: reg
         run: echo "registry=${IMAGE_REGISTRY,,}" >> "$GITHUB_OUTPUT"
 
-      # Same recipe you run locally. --pull=newer matters here: without it a
-      # nightly rebuild could sit on a cached base and never actually pick up
-      # upstream. `RUN bootc container lint` is the last layer, so it gates
-      # every build including pull requests.
+      # --pull=newer, or a nightly rebuild sits on a cached base and never sees upstream.
       - name: Build
         run: |
           just build-image \
@@ -99,10 +75,7 @@ jobs:
             '${{ steps.reg.outputs.registry }}' \
             newer
 
-      # Re-splits the image into per-package layers that stay byte-identical
-      # across rebuilds, which is what keeps a nightly `just update` in the
-      # hundreds of MB rather than multiple GB. Must precede the push: it
-      # rewrites the manifest, and the signature is over the pushed digest.
+      # Splits into layers that stay identical across rebuilds, so an update is MB not GB.
       - name: Rechunk
         run: just rechunk-ci '${{ env.IMAGE_TAG }}'
 
@@ -124,22 +97,19 @@ jobs:
           set -euo pipefail
           INFO=/usr/share/ublue-os/image-info.json
 
-          # Identity. base-image-name must stay kinoite: it is the runtime DE
-          # oracle for bazzite-user-setup and the ujust recipes.
+          # base-image-name stays kinoite, because bazzite's own scripts read it to tell which desktop this is.
           jq -e '."image-name"       == "bazzite-sway"' "$INFO" >/dev/null
           jq -e '."base-image-name"  == "kinoite"'      "$INFO" >/dev/null
           jq -e '."image-ref" | startswith("ostree-image-signed:docker://")' "$INFO" >/dev/null
           grep -q 'PRETTY_NAME="Bazzite Sway"' /usr/lib/os-release
 
-          # The three trust files, without which the published image could
-          # never verify its own updates.
+          # The trust files, without which the image cannot verify its own updates.
           test -s "/etc/pki/containers/${NS}.pub"
           grep -q 'use-sigstore-attachments: true' "/etc/containers/registries.d/${NS}.yaml"
           jq -e --arg r "$REG" \
              '.transports.docker[$r][0].type == "sigstoreSigned"' \
              /etc/containers/policy.json >/dev/null
-          # The catch-all has to survive, or the first bootstrap switch onto
-          # this image on an untrusting machine would be impossible.
+          # The catch-all must survive, or the first switch onto this image is impossible.
           jq -e '.transports.docker[""][0].type == "insecureAcceptAnything"' \
              /etc/containers/policy.json >/dev/null
 
@@ -148,68 +118,34 @@ jobs:
           test -L /usr/lib/systemd/user/sway-session.target.wants/noctalia.service
           test -e /usr/share/wayland-sessions/sway.desktop
 
-          # The terminal. ghostty comes from Terra -- as does noctalia-greeter
-          # above -- so a Terra outage or a rename must fail here rather than
-          # land as a desktop with no working $mod+Return. The
-          # grep covers the sed in 10-sway-install.sh silently no-opping if
-          # sway-config-fedora ever reformats that line.
+          # ghostty comes from Terra, so an outage or rename fails here, not at first login.
           test -x /usr/bin/ghostty
           test -f /usr/share/terminfo/x/xterm-ghostty
           grep -q '^set \$term ghostty$' /etc/sway/config
           command -v foot >/dev/null    # retained fallback
 
-          # Hack Nerd Font Mono is fetched from a GitHub release during the
-          # build -- the one artifact here that does not come from a signed
-          # repo. A 404 after an upstream retag, or a checksum bump that was
-          # not applied, has to fail CI rather than ship an image whose bar and
-          # terminal quietly fall back to Noto.
+          # Fetched from a GitHub release, so a retag or a stale checksum must fail here.
           test -f /usr/share/fonts/hack-nerd-fonts/HackNerdFontMono-Regular.ttf
-          # -q, not `| grep -q`: grep -q exits early, fc-list takes SIGPIPE,
-          # and the pipefail above turns a successful match into exit 141.
+          # fc-list -q, not a grep pipe, which SIGPIPEs a match into a failure.
           fc-list -q 'Hack Nerd Font Mono'
 
-          # The compositor. swayfx comes from a COPR whose RPM is a July 2025
-          # .fc43 build that nobody has rebuilt since, so this is the tripwire:
-          # it links libwlroots-0.19, which F44 still ships as a compat package.
-          # The day that is retired, or its soname bumped, the nightly has to
-          # fail HERE rather than ship an image whose desktop cannot start.
-          #
-          # `rpm -q --whatprovides sway`, never `rpm -q sway`: swayfx carries
-          # Provides: sway = 1.11 and Conflicts: sway, so there is no package by
-          # that name any more.
+          # swayfx needs the old libwlroots-0.19, so the day F44 drops it this must fail here.
+          # --whatprovides, because swayfx provides sway and no package is named sway.
           rpm -q swayfx
           rpm -q --whatprovides sway >/dev/null
           test -x /usr/bin/sway
-          # ldd once into a variable, then bash pattern matching -- `ldd | grep -q`
-          # would let grep exit early, SIGPIPE ldd, and pipefail would turn a
-          # passing assertion into exit 141.
+          # Into a variable, not a grep pipe, which SIGPIPEs a match into a failure.
           sway_libs="$(ldd /usr/bin/sway)"
           [[ "$sway_libs" == *libwlroots-0.19.so* ]]
           [[ "$sway_libs" == *libscenefx* ]]
-          # sway-config-fedora must have survived Conflicts: sway -- it owns
-          # /etc/sway/config, start-sway and the session desktop entry.
+          # sway-config-fedora owns /etc/sway/config and start-sway, so it must survive.
           rpm -q sway-config-fedora sway-systemd >/dev/null
-          # GLES2, not vulkan: SwayFX's fx_renderer has no Vulkan path, and at
-          # vulkan the compositor works but silently draws no effects.
+          # On Vulkan SwayFX starts fine and silently draws no effects.
           grep -q '^WLR_RENDERER=gles2$' /etc/sway/environment
-          # And swayfx can still parse the config it inherited, after the
-          # rechunk. --unsupported-gpu because sway runs its NVIDIA guard before
-          # it validates; -C touches no device.
-          # No `sway -C` here: it cannot run in a container at all (file
-          # capability, then a libseat seat that does not exist), and a good
-          # config is indistinguishable from a broken one. See the note in
-          # build_files/15-swayfx.sh. verify.sh does this at runtime instead.
+          # No sway -C here: it cannot run in a container, so verify.sh checks the config at runtime.
 
-          # THE SHELL. Everything this desktop is made of except the compositor
-          # is behind this one package -- bar, launcher, notifications, OSD,
-          # clipboard, screenshots, idle, lock screen, and the only
-          # authentication agent on the machine. This step runs AFTER the
-          # rechunk precisely to prove the assets tree and the enablement
-          # symlink survived it.
-          #
-          # From Fedora proper, unlike swayfx and the greeter, so the vendor is
-          # asserted: a Terra build winning this name would be a different
-          # version line arriving silently.
+          # One package is the whole desktop bar the compositor, so assert it hard.
+          # Vendor too, or a Terra build winning this name would swap the version line silently.
           rpm -q noctalia >/dev/null
           [[ "$(rpm -q --queryformat '%{VENDOR}' noctalia)" == "Fedora Project" ]]
           test -x /usr/bin/noctalia
@@ -218,29 +154,18 @@ jobs:
           noctalia_libs="$(ldd /usr/bin/noctalia)"
           [[ "$noctalia_libs" == *libEGL*            ]]
           [[ "$noctalia_libs" == *libGLESv2*         ]]
-          # The three services whose absence is silent: no polkit agent means
-          # pkexec and ujust hang, no SecretAgent means a password-protected
-          # wifi network cannot be joined, and no StatusNotifierHost means
-          # wait-sni-ready times out and gnome-keyring's autostart never runs.
+          # These three fail silently: no password prompt, no wifi login, no tray.
           [[ "$noctalia_libs" == *libpolkit-agent-1* ]]
           grep -aq 'org.freedesktop.NetworkManager.SecretAgent' /usr/bin/noctalia
           grep -aq 'org.kde.StatusNotifierHost'                 /usr/bin/noctalia
 
-          # The seven packages it replaced that could actually leave. rofi is
-          # the one needing --exclude: sway-config-fedora Recommends
-          # rofi-wayland and the `rofi` package PROVIDES that name, so dropping
-          # it from the install list is not enough. This is the assertion that
-          # the exclude is still there.
+          # rofi needs an explicit exclude, because the rofi package provides rofi-wayland.
           for p in rofi SwayNotificationCenter mako wlogout cliphist swappy \
                    mate-polkit hyprlock hypridle; do
             ! rpm -q "$p" >/dev/null
           done
 
-          # And the ones that CANNOT go: hard Requires of sway-config-fedora,
-          # still on disk, retired by /etc overrides instead. Assert both halves
-          # -- if Fedora ever drops one of these Requires, the package vanishes
-          # and its override starts retiring nothing, which looks exactly like an
-          # override that is working.
+          # These cannot be removed, so empty /etc files retire them instead.
           rpm -q waybar swaylock swayidle grimshot lxqt-policykit >/dev/null
           for f in 90-bar.conf 90-swayidle.conf 95-autostart-policykit-agent.conf \
                    60-bindings-screenshot.conf 60-bindings-volume.conf \
@@ -250,12 +175,7 @@ jobs:
             ! grep -qvE '^[[:space:]]*(#|$)' "/etc/sway/config.d/$f"
           done
 
-          # The greeter. noctalia-greeter brings its own wlroots 0.20
-          # compositor, so nothing hosts it and /etc carries only greetd's own
-          # config -- but the wrapper and the factory copy of greeter.toml are
-          # both load-bearing, and this step runs after the rechunk precisely to
-          # prove they survived it. tuigreet is the retained fallback; gtkgreet
-          # is gone with the sway greeter that used to host it.
+          # The greeter brings its own compositor, so only the wrapper and greeter.toml are ours.
           rpm -q noctalia-greeter greetd-fakegreet >/dev/null
           test -x /usr/bin/noctalia-greeter-session
           test -x /usr/bin/noctalia-greeter-compositor
@@ -263,38 +183,23 @@ jobs:
           test -x /usr/libexec/noctalia-greeter-nvidia
           grep -q 'WLR_RENDERER:=gles2' /usr/libexec/noctalia-greeter-nvidia
           grep -q '^command = "/usr/libexec/noctalia-greeter-nvidia"$' /etc/greetd/config.toml
-          # The config the greeter is copied by tmpfiles.d at boot, and the one
-          # line proving it is the greyscale copy rather than something stock.
+          # tmpfiles.d copies this at boot, and the colour proves it is our greyscale copy.
           test -s /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
           grep -q '^surface *= *"#1a1a1a"$' /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
-          # The `r` then `C` pair, and NOT `C+`. This assertion used to read
-          # `^C+ /var/lib/...` and could never pass: the shipped file has `C`
-          # with no plus, and build_files/20-display-manager.sh asserts the
-          # ABSENCE of `C+`. Both could not be true, so this step had been
-          # failing since the two landed in the same commit. The distinction is
-          # load-bearing -- `C+` only descends into a non-empty destination
-          # DIRECTORY, and over an existing destination FILE both C and C+ skip
-          # silently, which meant greeter.toml landed once on initial
-          # provisioning and never again.
+          # C, never C+, which only descends into a directory and would skip this file.
           grep -qE '^r[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]*$' /usr/lib/tmpfiles.d/bazzite-sway.conf
           grep -qE '^C[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]'  /usr/lib/tmpfiles.d/bazzite-sway.conf
           ! grep -qE '^C\+[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml'        /usr/lib/tmpfiles.d/bazzite-sway.conf
-          # The SELinux alias, without which the state directory lands as
-          # var_lib_t and xdm_t cannot write it -- a blank login screen.
+          # Without this alias the greeter cannot write its state and the screen stays blank.
           grep -q '^/var/lib/noctalia-greeter /var/lib/greetd$' \
             /etc/selinux/targeted/contexts/files/file_contexts.subs
           # wlroots 0.20 for the greeter, 0.19 for swayfx, both from Fedora.
           greeter_libs="$(ldd /usr/bin/noctalia-greeter-compositor)"
           [[ "$greeter_libs" == *libwlroots-0.20.so* ]]
           [[ "$(rpm -q --queryformat '%{VENDOR}' wlroots)" == "Fedora Project" ]]
-          # The session list's only source now: no /etc/greetd/environments. Run
-          # the greeter's own enumerator, which needs no display and no seat, so
-          # this is behavioural rather than a grep over a desktop entry.
+          # Desktop entries are the only source of the session list now.
           grep -q '^Exec=start-sway$' /usr/share/wayland-sessions/sway.desktop
-          # This runs on the FINISHED image, unlike the same call in
-          # 17-noctalia-greeter.sh, so it can require that Sway is the only
-          # entry: a Plasma line here means plasma.desktop outlived the KDE
-          # removal and the login screen offers a session that cannot start.
+          # On the finished image Sway must be the only session, or KDE removal missed something.
           greeter_sessions="$(noctalia-greeter sessions)"
           [[ "$greeter_sessions" == *Sway* ]]
           [[ "$greeter_sessions" != *Plasma* ]]
@@ -302,38 +207,25 @@ jobs:
           command -v tuigreet >/dev/null
           ! command -v gtkgreet >/dev/null
 
-          # Theming. papirus-folders is the SECOND artifact in this build
-          # fetched from a GitHub release rather than a signed repo, so it gets
-          # the same treatment as the Hack font: a 404 after an upstream retag,
-          # or an unapplied checksum bump, must fail CI. The user-* symlink is
-          # checked as well as folder*, because only the full variant set gives
-          # Home and Desktop black icons.
+          # Also fetched from a GitHub release, and user-* proves the full icon set landed.
           test -d /usr/share/themes/adw-gtk3-dark
           test -d /usr/share/icons/Papirus-Dark
           fc-list -q 'Inter'
           [[ "$(readlink /usr/share/icons/Papirus/48x48/places/folder.svg)"    == *folder-black* ]]
           [[ "$(readlink /usr/share/icons/Papirus/48x48/places/user-home.svg)" == *user-black*   ]]
 
-          # The COPRs must ship DISABLED, like terra.repo. An enabled
-          # third-party repo in the artifact would let a later transaction on a
-          # booted machine pull from it, and bootc would 3-way merge the file.
+          # Disabled, or a booted machine could later pull from a third-party repo.
           for f in /etc/yum.repos.d/_copr_swayfx-swayfx.repo; do
             test -f "$f"
             grep -q '^enabled=0$' "$f"
           done
-          # And the one that went. The hypr COPR left with 16-hyprlock.sh, which
-          # takes this image from three third-party repos to two -- noctalia
-          # itself is Fedora `updates`, so the shell swap added no trust root at
-          # all. "The script is deleted" and "the repo file is not in the
-          # artifact" are different claims; this is the second.
+          # The hypr COPR left with 16-hyprlock.sh, so its repo file must be gone too.
           test ! -f /etc/yum.repos.d/_copr_scottames-hypr.repo
 
           echo "image checks passed"
           EOF
 
-      # Two logins, because two different users need registry credentials:
-      # `sudo podman push` reads root's auth.json, cosign reads the runner
-      # user's ~/.docker/config.json.
+      # Two logins, because podman runs as root and cosign as the runner user.
       - name: Log in to GHCR (root, for podman push)
         if: github.event_name != 'pull_request'
         env:
@@ -361,11 +253,9 @@ jobs:
         run: |
           set -euxo pipefail
           dest="${REGISTRY}/${IMAGE_NAME}"
-          # One date for the whole loop, so a run straddling midnight UTC does
-          # not produce two different dated tags.
+          # One date for the loop, so a run over midnight cannot make two dated tags.
           dated="${TAG}-$(date -u +%Y%m%d)"
-          # Both tags are the same manifest, so they share one digest and one
-          # signature covers both.
+          # Same manifest both times, so one signature covers both tags.
           for t in "${TAG}" "${dated}"; do
             sudo podman push --digestfile=/tmp/digestfile \
               "localhost/${IMAGE_NAME}:${TAG}" "${dest}:${t}"
@@ -381,10 +271,7 @@ jobs:
         with:
           cosign-release: 'v3.1.3'
 
-      # --new-bundle-format=false --use-signing-config=false are load-bearing:
-      # cosign v3 otherwise writes a bundle format that podman, skopeo and bootc
-      # cannot read as a sigstore attachment, and verification then fails at
-      # pull time on the machine rather than here.
+      # Without these flags cosign v3 writes a bundle podman and bootc cannot read.
       - name: Sign the image
         if: github.event_name != 'pull_request'
         env:
@@ -400,9 +287,7 @@ jobs:
             --key env://COSIGN_PRIVATE_KEY \
             "${DEST}@${DIGEST}"
 
-      # Verify with the committed public key -- the same file baked into the
-      # image. If SIGNING_SECRET and cosign.pub ever drift apart, this fails
-      # here instead of bricking the next `just update`.
+      # If the secret and the committed cosign.pub drift apart, fail here, not on the next update.
       - name: Verify the signature
         if: github.event_name != 'pull_request'
         env:

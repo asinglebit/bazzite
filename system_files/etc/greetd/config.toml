@@ -1,16 +1,7 @@
 # greetd + noctalia-greeter, which brings its own wlroots 0.20 compositor.
+# greetd rather than sddm-wayland-sway, which gives no way to pass sway its NVIDIA flags.
 #
-# greetd, not sddm-wayland-sway: that runs its greeter as a real Sway instance
-# without letting you pass flags to it, so it hits sway's own NVIDIA guard.
-# greetd is the one that lets us write the greeter's command line ourselves.
-#
-# THE COST: a GPU stack is in the login path, and the compositor's open bugs
-# cluster on multi-output DRM teardown -- this machine's exact shape. A driver
-# or greeter regression takes the login screen down with the session, and the
-# way back is Ctrl+Alt+F2 rather than simply logging in.
-#
-# tuigreet stays installed and unbound as the only rung below, chosen because it
-# needs no compositor and no GPU. To fall back:
+# tuigreet is the fallback, because it needs no compositor and no GPU. To fall back:
 #
 #   command = "tuigreet --time --remember --remember-user-session --asterisks --kb-sessions 3 --sessions /usr/share/wayland-sessions --cmd start-sway"
 #
@@ -20,14 +11,7 @@
 vt = 1
 
 [default_session]
-# The wrapper, not noctalia-greeter-session directly: the bundled compositor is
-# a separate wlroots instance and inherits nothing from /etc/sway/environment.
-# It cannot be a greetd.service drop-in either -- greetd builds the session's
-# environment itself, and upstream is explicit that env assignments inside this
-# TOML do not work.
-#
-# 17-noctalia-greeter.sh greps the wrapper's contents and 20-display-manager.sh
-# checks this line, so a typo is a failed build rather than a greetd that burns
-# its five restarts against a VT with no getty on it.
+# The wrapper, not the greeter directly, because the compositor inherits nothing from sway.
+# The build greps this line, so a typo fails the build rather than burning greetd's five restarts.
 command = "/usr/libexec/noctalia-greeter-nvidia"
 user = "greetd"

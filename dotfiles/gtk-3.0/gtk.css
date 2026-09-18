@@ -1,30 +1,13 @@
 /*
  * Greyscale adw-gtk3-dark.
  *
- * A stylesheet rather than a theme fork because adw-gtk3-dark reaches its
- * palette almost entirely by NAME (@window_bg_color and friends, ~1360
- * references against 130 literal hex tokens). GTK loads this at
- * GTK_STYLE_PROVIDER_PRIORITY_USER, above the theme's own level, so a
- * redefinition wins and a theme update cannot undo it -- which a forked copy
- * under ~/.themes would not survive.
- *
- * PRECONDITION, AND IT IS NOT TRUE AS SHIPPED. All of this holds only while
- * adw-gtk3-dark is the ACTIVE GTK3 theme: the GTK3 legacy names a widget
- * actually asks for (theme_bg_color, theme_selected_bg_color, ...) are aliases
- * of the libadwaita names below only INSIDE that theme. On Wayland the XDG
- * portal answers theme, icon theme, cursor theme and UI font out of
- * org.gnome.desktop.interface in dconf and WINS over settings.ini, where
- * Plasma-era leftovers still sit. verify.sh checks all four under "Theming" and
- * prints the gsettings line to fix each.
- *
- * NOT an @import of one shared file: GTK resolves a relative @import against
- * the file it is reading, and ~/.config/gtk-3.0/gtk.css is a symlink into this
- * repo -- the import would resolve inside the repo and make the desktop depend
- * on it being checked out. gtk-4.0/gtk.css restates the palette instead.
+ * A stylesheet, not a theme fork: GTK loads this above the theme, so a theme update cannot undo it.
+ * It only holds while adw-gtk3-dark is the active theme, which verify.sh checks under "Theming".
+ * Not an @import of one shared file, which would resolve inside the repo and tie the desktop to it.
  *
  * Palette, dark to light:
- *   #1a1a1a  darkest -- content views, floating panels
- *   #242424  desktop grey -- window bodies and chrome
+ *   #1a1a1a  content views, floating panels
+ *   #242424  window bodies and chrome
  *   #2e2e2e  hairline, and the selection fill
  *   #5a5a5a  disabled text
  *   #9a9a9a  secondary text
@@ -32,10 +15,7 @@
  *   #ffffff  alert
  */
 
-/* Headerbar and sidebar JOIN the window at #242424 rather than standing a tier
- * above it, which is what 20-appearance.conf paints sway's own titlebars.
- * Popovers and dialogs go DOWN to #1a1a1a rather than up to a lighter tier:
- * separated by a hairline, not by brightness. */
+/* Popovers go down to #1a1a1a, not up: surfaces separate by a hairline, not by brightness. */
 @define-color view_bg_color      #1a1a1a;
 @define-color window_bg_color    #242424;
 @define-color headerbar_bg_color #242424;
@@ -44,13 +24,11 @@
 @define-color dialog_bg_color    #1a1a1a;
 @define-color card_bg_color      #1a1a1a;
 
-/* Flat, so focus is carried by text brightness rather than a change of
- * surface -- the rule 20-appearance.conf already follows. */
+/* Flat, so focus is carried by text brightness rather than a change of surface. */
 @define-color sidebar_backdrop_color   #242424;
 @define-color headerbar_backdrop_color #242424;
 
-/* Every one of these is `white` in adw's dark palette. Pure white is reserved
- * for alerts below. */
+/* adw makes all of these pure white, which is reserved for alerts below. */
 @define-color window_fg_color        #d8d8d8;
 @define-color view_fg_color          #d8d8d8;
 @define-color headerbar_fg_color     #d8d8d8;
@@ -63,19 +41,12 @@
 /* Explicit: adw derives this as alpha(fg, 0.5), which computes #7e7e7e. */
 @define-color insensitive_fg_color #5a5a5a;
 
-/* Bright fill, dark glyph -- greyscale signals with brightness, so the accent
- * has to be the bright end or a state change looks like nothing happened.
- * accent_color is held rather than derived: adw's mix(accent, white, 0.4) would
- * compute #e8e8e8, a step the ramp does not contain. */
+/* Greyscale signals with brightness, so the accent has to be the bright end. */
 @define-color accent_bg_color #d8d8d8;
 @define-color accent_fg_color #1a1a1a;
 @define-color accent_color    #d8d8d8;
 
-/* No red and no green in greyscale, so these are the brightness ladder
- * instead. THE COST: a failed copy in Thunar loses its red, and an error is one
- * step of brightness from a warning. To put hue back for these roles alone, set
- * the six *_color values to adw's @red_3 / @yellow_5 / @green_4 -- nothing else
- * here depends on them. */
+/* No red or green in greyscale, so these are the brightness ladder instead. */
 @define-color success_bg_color     #9a9a9a;
 @define-color success_fg_color     #1a1a1a;
 @define-color success_color        #9a9a9a;
@@ -89,21 +60,11 @@
 @define-color destructive_fg_color #1a1a1a;
 @define-color destructive_color    #ffffff;
 
-/* Load-bearing, not decoration: this is what separates a menu from the view
- * behind it now that both are #1a1a1a. Explicit because adw's derived value
- * computes #3f3f3f, brighter than the hairline every other surface draws. */
+/* This is what separates a menu from the view behind it, now that both are #1a1a1a. */
 @define-color borders           #2e2e2e;
 @define-color unfocused_borders #2e2e2e;
 
-/* adw-gtk3 draws the two kinds of list differently: row:selected at
- * alpha(currentColor, 0.1) -> #2d2d2d, but the treeview family at
- * alpha(accent, 0.25) -> #4a4a4a, which is 29 steps brighter because 0.25 of a
- * bright accent lifts far more than 0.25 of a blue one did. In Thunar that is
- * two different selection tones in one window. This pins the treeview family to
- * what the list family computes.
- *
- * At the theme's own selector depth so it matches without !important. If adw
- * renames these, selection returns to a neutral #4a4a4a rather than to blue. */
+/* adw gives treeviews a brighter selection than lists, so Thunar drew two tones in one window. */
 treeview.view:selected,
 treeview.view:selected:focus,
 iconview:selected,

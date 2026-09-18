@@ -17,8 +17,7 @@ grep -q '^command = "/usr/libexec/noctalia-greeter-nvidia"$' /etc/greetd/config.
 grep -q '^user = "greetd"$' /etc/greetd/config.toml
 grep -q '^vt = 1$'          /etc/greetd/config.toml
 
-# This one file is the entire session list, and sway will not start on this GPU
-# unless the Exec line goes through start-sway.
+# sway will not start on this GPU unless the Exec line goes through start-sway.
 test -f /usr/share/wayland-sessions/sway.desktop
 grep -q '^Exec=start-sway$' /usr/share/wayland-sessions/sway.desktop
 
@@ -32,8 +31,7 @@ systemd-tmpfiles --cat-config >/dev/null
 # The rule leaves its source path implicit, so check it exists or the greeter comes up blank.
 test -s /usr/share/factory/var/lib/noctalia-greeter/greeter.toml
 
-# The remove-then-copy pair is required: a copy rule on its own skips an existing file
-# without saying so, and the login screen would quietly stop tracking the image.
+# A copy rule on its own skips an existing file without saying so, hence the remove first.
 grep -qE '^r[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]*$' \
     /usr/lib/tmpfiles.d/bazzite-sway.conf
 grep -qE '^C[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]' \
@@ -41,7 +39,7 @@ grep -qE '^C[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml[[:space:]]' \
 ! grep -qE '^C\+[[:space:]]+/var/lib/noctalia-greeter/greeter\.toml' \
     /usr/lib/tmpfiles.d/bazzite-sway.conf
 
-# Unlocks the keyring at login instead of prompting again; appending puts these last, where they belong.
+# Unlocks the keyring at login instead of prompting again.
 if ! grep -q pam_gnome_keyring /etc/pam.d/greetd; then
     cat >> /etc/pam.d/greetd <<'PAMEOF'
 -auth      optional   pam_gnome_keyring.so

@@ -1,7 +1,6 @@
 #!/usr/bin/bash
-# Installs the three files needed to verify this image's own updates: the public key,
-# a note that signatures live on the registry, and a policy requiring one.
-# Miss the middle file and verification passes without ever looking for a signature.
+# Installs the three files needed to verify this image's own updates.
+# Miss the middle one and verification passes without ever looking for a signature.
 set -euxo pipefail
 
 CTX="${CTX:-/ctx}"

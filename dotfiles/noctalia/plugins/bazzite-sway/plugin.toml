@@ -13,14 +13,8 @@ tags        = [ "sway", "system" ]
 icon        = "cpu"
 dependencies = []
 
-# cpu, memory and package temperature as one glyph; figures in the tooltip, the
-# alert in the glyph's colour. The sensor is found BY NAME, not by index.
-#
-# Thresholds are constants in hardware.luau rather than [[widget.setting]]
-# entries: the manifest's setting schema is the one construct here that cannot
-# be checked offline, and a bad key risks the whole plugin failing to load,
-# taking all four widgets with it. They mirror [system.monitor] in
-# 50-services.toml, which is what the control centre colours against.
+# cpu, memory and package temperature as one glyph, with the sensor found by name, not index.
+# Thresholds are constants in hardware.luau, because a bad setting key would fail the whole plugin.
 [[widget]]
 id    = "hardware"
 entry = "hardware.luau"
@@ -30,15 +24,12 @@ entry = "hardware.luau"
 id    = "swaymode"
 entry = "swaymode.luau"
 
-# 20-appearance.conf sets `default_border none`, so a window sent to the
-# scratchpad leaves no trace on screen -- this count is the only feedback that
-# the binding did anything. Hidden when empty.
+# With no borders, this count is the only sign a window went to the scratchpad.
 [[widget]]
 id    = "scratchpad"
 entry = "scratchpad.luau"
 
-# Invisible until a unit fails -- including noctalia.service, though by then
-# there is no bar to show it.
+# Invisible until a unit fails, including noctalia.service, when there is no bar left to show it.
 [[widget]]
 id    = "failedunits"
 entry = "failedunits.luau"

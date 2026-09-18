@@ -1,11 +1,9 @@
-# The cosign private key. Never commit this — it lives in the repository's
-# SIGNING_SECRET Actions secret, and nowhere else.
+# The cosign private key, which lives only in the SIGNING_SECRET Actions secret.
 cosign.key
 *.key
 *.pem
 
-# cosign.pub is deliberately NOT ignored: it is public, it is committed, and
-# 50-signing.sh bakes it into the image at /etc/pki/containers/asinglebit.pub.
+# cosign.pub is deliberately NOT ignored: it is public and the image bakes it in.
 
 # Local build droppings
 *.bak-*

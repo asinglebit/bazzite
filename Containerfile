@@ -15,8 +15,7 @@ ARG IMAGE_REGISTRY=""
 # One image, one tag; it stays an arg because 40-branding.sh writes it into image-info.json.
 ARG IMAGE_TAG="sway"
 
-# A hash of the build scripts, used only so podman notices when they change.
-# Without it a build says "Using cache" and quietly tags the previous image again.
+# Without this podman says "Using cache" and quietly tags the previous image again.
 ARG CTX_DIGEST=""
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \

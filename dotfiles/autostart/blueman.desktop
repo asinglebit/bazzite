@@ -2,20 +2,7 @@
 Type=Application
 Name=Blueman Applet
 Exec=blueman-applet
-# Overrides /etc/xdg/autostart/blueman.desktop by basename. Hidden=true means
-# "treat as if it does not exist", so systemd's xdg-autostart generator stops
-# creating app-blueman@autostart.service.
-#
-# blueman-applet's only remaining job on this desktop was its tray icon, which
-# is a full-colour PNG out of hicolor and could not be themed -- GTK CSS has no
-# desaturate. waybar's own bluetooth module replaces it, drawn in the bar font.
-#
-# Disabling blueman's StatusIcon plugin instead does not work: it depends on
-# Menu and StandardItems, both __unloadable__ = False, and blueman's
-# PluginManager propagates that to the dependent, so "!StatusIcon" in
-# org.blueman.general plugin-list is silently ignored.
-#
-# Trade-off: no applet means no AuthAgent prompt for INCOMING pairing requests,
-# and no connection notifications. Pairing started from blueman-manager (which
-# the waybar module opens on click) still works -- it registers its own agent.
+# Overrides the /etc/xdg copy by basename, and Hidden=true stops systemd autostarting it.
+# Its tray icon is an unthemeable colour PNG, and the bar already draws bluetooth.
+# The cost is no prompt for incoming pairing requests, though blueman-manager still works.
 Hidden=true

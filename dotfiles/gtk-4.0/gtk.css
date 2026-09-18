@@ -1,21 +1,10 @@
 /*
- * The same greyscale palette as gtk-3.0/gtk.css, for the GTK4 half of the
- * desktop. Read that file first -- the mapping and the reasons are argued there.
+ * The same greyscale palette as gtk-3.0/gtk.css, for the GTK4 half of the desktop.
  *
- * STILL AN @define-color FILE even though libadwaita deprecated it in 1.6: on
- * 1.9.3 the CSS custom properties are a front end for the old names, not a
- * replacement (`--window-bg-color: @window_bg_color` and so on). 42 of the 44
- * surface and semantic variables are sourced that way, so this block reaches
- * them. The two that are not are in the :root block at the end.
- *
- * Reaches pavucontrol (plain GTK4, via adw-gtk3's gtk-4.0 sheet), any other
- * GTK4 app, and GTK4 file choosers hosted by GTK3 apps through the portal.
- * Firefox, Chromium and Electron are NOT in that list -- they follow the portal
- * colour-scheme and their own internal palettes past that.
- *
- * NOT an @import of gtk-3.0/gtk.css: GTK resolves a relative @import against
- * the file it is reading, and this path is a symlink into the repo, so the
- * import would make the desktop depend on the repo being checked out.
+ * Still @define-color, because libadwaita 1.9 still sources its CSS variables from those names.
+ * The two it does not are in the :root block at the end.
+ * Firefox, Chromium and Electron are not reached; they follow the portal and their own palettes.
+ * Not an @import, which would resolve inside the repo and tie the desktop to it.
  */
 @define-color view_bg_color      #1a1a1a;
 @define-color window_bg_color    #242424;
@@ -60,26 +49,13 @@
 @define-color destructive_fg_color #1a1a1a;
 @define-color destructive_color    #ffffff;
 
-/* A GTK3 name libadwaita does not read -- here for adw-gtk3's GTK4 port, which
- * still resolves it. The variable the library itself uses is below. */
+/* A GTK3 name libadwaita ignores, kept for adw-gtk3's GTK4 port, which still reads it. */
 @define-color borders           #2e2e2e;
 @define-color unfocused_borders #2e2e2e;
 
 /*
- * The two exceptions to the "42 of 44" above. Both are needed.
- *
- * --border-color is not sourced from @borders by either sheet; both compute it
- * from currentColor at 15% opacity, which resolves to roughly #3f3f3f --
- * brighter than the hairline every other surface draws. Setting
- * --border-opacity instead cannot work: one percentage cannot hit #2e2e2e
- * against both #242424 and #1a1a1a.
- *
- * --accent-bg-color is a trap. libadwaita's own sheet follows the block above
- * correctly, but adw-gtk3's libadwaita-tweaks.css -- the last word for a plain
- * GTK4 app -- overrides it with `var(--accent-blue)`, pinned to #3584e4,
- * bypassing the @define-color it re-declares three lines earlier. Without this,
- * pavucontrol keeps a blue accent while everything else is grey, and nothing in
- * the @define-color block can reach it.
+ * --border-color is computed from currentColor, which lands brighter than the hairline.
+ * --accent-bg-color is pinned back to blue by adw-gtk3's tweaks sheet, which the block above cannot reach.
  */
 :root {
     --border-color: #2e2e2e;

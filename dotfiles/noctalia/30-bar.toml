@@ -40,8 +40,7 @@ order = [ "default" ]
     border_width    = 0.0
     hover_highlight = true
 
-    # No per-monitor table on purpose, because noctalia keys those by connector name and
-    # connectors move; if the bar looks wrong, change this one number instead.
+    # No per-monitor table, because noctalia keys those by connector name and connectors move.
     scale = 0.75
 
     start  = [ "workspaces" ]

@@ -16,8 +16,7 @@ fi
 
 INFO=/usr/share/ublue-os/image-info.json
 
-# base-image-name must stay "kinoite", checked below: Bazzite's own scripts read it to
-# guess the desktop, and any other value sends them down a worse branch.
+# base-image-name must stay "kinoite", because Bazzite's scripts read it to guess the desktop.
 jq --arg n "${IMAGE_NAME}" --arg v "${IMAGE_VENDOR}" --arg r "${IMAGE_REF}" \
    --arg t "${IMAGE_TAG}" \
    '."image-name" = $n | ."image-vendor" = $v | ."image-ref" = $r
@@ -36,7 +35,7 @@ sed -i \
 grep -E '^(PRETTY_NAME|IMAGE_ID|BOOTLOADER_NAME)=' /usr/lib/os-release
 
 # The ublue banner reprints in every shell and advertises a tag this repo never publishes.
-# Checked before removing, so that upstream moving the file fails the build instead of going quiet.
+# Checked before removing, so upstream moving the file fails the build.
 test -e /etc/profile.d/user-motd.sh
 rm -f /etc/profile.d/user-motd.sh
 
