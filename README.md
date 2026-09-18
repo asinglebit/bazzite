@@ -26,6 +26,7 @@ Fedora 44. Sway is the only session offered.
 | `system_files/` | Copied verbatim into the image: greetd config, the greeter's wrapper and `greeter.toml`, the shell's systemd unit, tmpfiles rules, the gschema override, and the comment-only `/etc/sway/config.d/` files that retire Fedora's drop-ins |
 | `dotfiles/` | Per-user **desktop** config — outputs, input, appearance, effects, wallpaper, GTK theming, `noctalia/`. Symlinked into `~/.config`; never enters the image |
 | `flatpaks.list` | The apps this desktop adds on top of Bazzite's own set, and the defaults it takes back off. `just install-flatpaks` reconciles both; nothing here enters the image |
+| `docs/` | An Obsidian vault: architecture, components, the reasoning behind each choice, and what updates when. Start at `docs/README.md` |
 | `verify.sh` | Post-boot checks: the assertions needing a running session, a GPU and a seat, which the build cannot make |
 | `.github/workflows/build.yml` | Nightly rebuild → rechunk → in-image checks → push → cosign sign → verify |
 | `cosign.pub` | Public half of the CI signing key. `cosign.key` lives only in the `SIGNING_SECRET` Actions secret |

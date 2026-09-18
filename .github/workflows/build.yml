@@ -11,6 +11,7 @@ on:
     # None of these can change the image, so they should not spend a build.
     paths-ignore:
       - '**.md'
+      - 'docs/**'
       - 'dotfiles/**'
       - 'verify.sh'
       - '.gitignore'

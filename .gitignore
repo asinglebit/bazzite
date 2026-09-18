@@ -7,3 +7,7 @@ cosign.key
 
 # Local build droppings
 *.bak-*
+
+# Obsidian per-machine UI state; the rest of docs/.obsidian is shared.
+docs/.obsidian/workspace.json
+docs/.obsidian/cache
