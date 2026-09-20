@@ -1,0 +1,39 @@
+# How a bazzite window is laid out. Read by `workspace up`, and by prefix + w.
+# Worktrees of this repo inherit it.
+#
+# This is `tds` from the dotfiles repo written down as a plan: a guitar in each
+# of the six repos this desktop is built out of across a thin top strip, over
+# one large atrium.
+#
+#   +----------+----------+----------+----------+----------+----------+
+#   |  guitar  |  guitar  |  guitar  |  guitar  |  guitar  |  guitar  | 20%
+#   | bazzite  | dotfiles |   tmux   |  neovim  |  guitar  |  atrium  |
+#   +----------+----------+----------+----------+----------+----------+
+#   |                                                                 |
+#   |                             atrium                              | 80%
+#   |                                                                 |
+#   +-----------------------------------------------------------------+
+#
+# The bottom row is cut first, so what the columns divide is the top strip
+# alone rather than the whole window.
+#
+# `size` is what the NEW pane takes, so each column split hands the remainder
+# rightward and the six come out equal: 5/6 of the window, then 4/5 of that,
+# then 3/4, 2/3, 1/2 -- each split leaving exactly one column behind.
+#
+# `cwd` is relative to the worktree root, and the other five repos are bazzite's
+# siblings under ~/projects/personal, hence `../name`. A worktree of this repo
+# sits beside the main checkout too, so those stay pointed at the same places.
+#
+# Nothing is left without a command, so the cursor lands on the first pane --
+# the bazzite column. The plan cannot ask for the atrium pane instead: the pane
+# that opens the window is always the top one.
+
+# name      from        split size  cwd          delay  command
+g-bazzite   -           -     -     .            0      g
+atrium      g-bazzite   v     80%   .            0      a
+g-dotfiles  g-bazzite   h     83%   ../dotfiles  0      g
+g-tmux      g-dotfiles  h     80%   ../tmux      0      g
+g-neovim    g-tmux      h     75%   ../neovim    0      g
+g-guitar    g-neovim    h     67%   ../guitar    0      g
+g-atrium    g-guitar    h     50%   ../atrium    0      g

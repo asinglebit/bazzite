@@ -30,6 +30,7 @@ Fedora 44. Sway is the only session offered.
 | `verify.sh` | Post-boot checks: the assertions needing a running session, a GPU and a seat, which the build cannot make |
 | `.github/workflows/build.yml` | Nightly rebuild → rechunk → in-image checks → push → cosign sign → verify |
 | `cosign.pub` | Public half of the CI signing key. `cosign.key` lives only in the `SIGNING_SECRET` Actions secret |
+| `.workspace` | The tmux window this repo opens in: a guitar in each of the six repos this desktop is built out of, over one atrium. Read by tmuxbar's `workspace up`; nothing in the build touches it |
 
 Shell, toolchains, tmux and Ghostty's own config are a separate, portable repo:
 [asinglebit/dotfiles](https://github.com/asinglebit/dotfiles). The two are independent — exactly
