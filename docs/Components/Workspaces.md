@@ -2,7 +2,7 @@
 
 Every screen owns its own block of ten. The leftmost screen has workspaces 1–10, the next
 11–20, and so on — so `$mod+1` means "this screen's first workspace" and a number key
-never moves focus to the other monitor.
+never moves focus to another monitor.
 
 ## Derived, never declared
 
@@ -34,7 +34,8 @@ reload leaves focus where it was.
 
 `dotfiles/sway/config.d/10-outputs.conf` names monitors by **EDID identifier**, not
 connector, for the same reason. The 4K panel has exactly twice the pixel density of the
-1080p one, so `scale 2` makes a window the same physical size on both.
+1080p ones, so `scale 2` makes a window the same physical size on all three. No mode names
+a refresh rate, so sway takes the highest each connection offers.
 
 `xwayland-primary.sh` marks the main monitor as the XWayland primary so X11 apps like
 Steam open there — wlroots never sets one and sway has no directive for it, hence
@@ -58,11 +59,12 @@ settings layer.
 
 ## What goes wrong
 
-- **Unplugging a screen strands its ten** on the survivor until it is back. `verify.sh`
-  warns rather than failing, and `swaymsg reload` repairs it.
+- **Unplugging a screen strands its ten** on the others and shifts the screens to its
+  right down by ten — with the left one out, the middle one's `$mod+1` is workspace 1.
+  `verify.sh` warns rather than failing, and `swaymsg reload` once it is back repairs it.
 - **A helper that is not executable** fails inside sway's `sh -c` with nothing on screen —
   the key just does nothing. `verify.sh` checks the mode, not just the symlink.
-- **The bar drawing both screens' blocks** means `show_all_outputs` is not `false` in
+- **The bar drawing every screen's blocks** means `show_all_outputs` is not `false` in
   `30-bar.toml`.
 
 The sorting rule is written in both the helper and `verify.sh`, so the check is a genuine

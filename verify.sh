@@ -245,7 +245,7 @@ fi
 ws_bar="${XDG_CONFIG_HOME:-$HOME/.config}/noctalia/30-bar.toml"
 grep -qE '^show_all_outputs[[:space:]]*=[[:space:]]*false' "$ws_bar" 2>/dev/null \
     && ok "bar lists only its own screen's workspaces" \
-    || meh "show_all_outputs is not false in 30-bar.toml -- each bar draws both screens' blocks"
+    || meh "show_all_outputs is not false in 30-bar.toml -- each bar draws every screen's blocks"
 
 head_ "Desktop services"
 # Only a process check, because polkit cannot be asked which agent is registered.
@@ -284,7 +284,7 @@ for b in ghostty foot Thunar wl-copy blueman-manager noctalia; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
 
-# The only way brightness works here at all, since both monitors are external.
+# The only way brightness works here at all, since every monitor is external.
 if command -v ddcutil >/dev/null; then
     if compgen -G '/dev/i2c-*' >/dev/null; then
         ok "ddcutil present with /dev/i2c-* (monitor brightness is possible)"

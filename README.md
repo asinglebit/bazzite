@@ -238,8 +238,9 @@ the image (`**.md`, `dotfiles/**` and `verify.sh` are ignored), on pull requests
 - **A rollback restores the image, not `dotfiles/`.** The two roll back separately and neither
   knows about the other.
 - **`$mod+1`..`0` is per-screen.** Every screen owns ten workspaces by its left-to-right position —
-  1–10 on the left, 11–20 on the right — so a number key never moves focus to the other monitor.
-  Unplugging a screen strands its ten on the survivor until it is back; `verify.sh` warns about it.
+  1–10 on the left, 11–20 in the middle, 21–30 on the right — so a number key never moves focus to
+  another monitor. Unplugging a screen strands its ten on the others and shifts the screens to its
+  right down by ten until it is back; `verify.sh` warns about it.
 - **No HDR** (`color-management-v1` is sway 1.12; F44 has 1.11) and **no Vulkan renderer**
   (SwayFX's `fx_renderer` is GLES2-only). VRR does work.
 - **No screen recording** — noctalia's capture is stills. **Screen sharing is whole-output only**;

@@ -40,7 +40,7 @@ switch|move|print)
 
     if [ -n "$spec" ]; then
         eval "$spec"
-        # The last command drags the workspace back here if it had wandered to the other screen.
+        # The last command drags the workspace back here if it had wandered to another screen.
         cmd="workspace --no-auto-back-and-forth number $ws; move workspace to output \"$out\""
         [ "$1" = switch ] ||
             cmd="move --no-auto-back-and-forth container to workspace number $ws; $cmd"

@@ -117,7 +117,7 @@ show_actions       = true
 collapse_on_dismiss = true
 monitors           = []
 
-# Both monitors are external, so brightness goes over DDC/CI rather than /sys/class/backlight.
+# Every monitor is external, so brightness goes over DDC/CI rather than /sys/class/backlight.
 [brightness]
 enable_ddcutil     = true
 sync_all_monitors  = false

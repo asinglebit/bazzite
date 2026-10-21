@@ -86,7 +86,7 @@ If it copies instead of failing, updates are going through unverified. See
 
 Run `./verify.sh` first. It exists for exactly this: 100-plus assertions about a running
 session, most of which describe failures that look like a quirk rather than a bug — a
-login screen that does not quite match, a bar that draws both screens' workspaces, a theme
+login screen that does not quite match, a bar that draws every screen's workspaces, a theme
 key coming from the wrong place, a threshold that drifted between two files.
 
 Related: [[Operations]], [[Components]].

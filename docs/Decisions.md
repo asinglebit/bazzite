@@ -47,7 +47,7 @@ The cost is the largest single point of failure in the system, and it fails *sil
 ## A graphical login screen, GPU and all
 
 A console greeter cannot scale per monitor; the same text cell is physically twice the
-size on one of these screens as the other. So [[Login screen|noctalia-greeter]] runs its
+size on the 1080p screens as on the 4K one. So [[Login screen|noctalia-greeter]] runs its
 own compositor.
 
 The cost is a GPU stack in the login path, where the driver's open bugs cluster on exactly

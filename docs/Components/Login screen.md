@@ -5,7 +5,7 @@ greetd running `noctalia-greeter`, which brings **its own wlroots 0.20 composito
 ## Why not a console greeter
 
 A text console cannot scale per monitor: its font is a fixed pixel bitmap, so the same
-8×16 cell is physically twice the size on the 81 PPI screen as on the 160 PPI one. A
+8×16 cell is physically twice the size on the 81 PPI screens as on the 160 PPI one. A
 graphical greeter with its own compositor derives each output's scale from that output's
 geometry and renders through fractional scaling.
 
