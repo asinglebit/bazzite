@@ -9,6 +9,8 @@ What moves on its own, what moves when asked, and what never moves by itself.
 | Kernel, mesa, NVIDIA driver | Arrive with the image | Same nightly; there is no separate path |
 | Flatpak apps | Independent of the image | `flatpak update` or topgrade, no reboot |
 | noctalia plugins | Never | `auto_update = "none"` |
+| voxtype | Never | Bumping the version and checksum pinned in `36-voxtype.sh` |
+| The Whisper model | Never | `voxtype setup --download`, per user, which skips a model already there |
 | `dotfiles/` | Never | `just link-dotfiles`, then `swaymsg reload` |
 
 ## Nothing fetches on its own

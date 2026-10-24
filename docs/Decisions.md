@@ -85,6 +85,14 @@ on its own — no timer, no update agent, and noctalia's `auto_update` is `"none
 
 See [[Cadence]].
 
+## Dictation never reads the keyboard
+
+voxtype can watch the keyboard itself, which takes the `input` group and with it read
+access to every keystroke on the machine. Sway's own bindings start and stop it instead.
+
+The cost is a sway mode that swallows modifiers while the text is typed, because the
+wait-for-release voxtype would otherwise do needs that same access. See [[Dictation]].
+
 ## No `:latest`
 
 A bare image reference resolving to some other tag would be a silent change of what the

@@ -1,0 +1,19 @@
+[Unit]
+Description=voxtype (hold-to-talk dictation into the focused window)
+Documentation=https://github.com/peteonrails/voxtype
+PartOf=graphical-session.target
+After=graphical-session.target pipewire.service
+# Its built-in defaults read the keyboard directly and exit without the input group, so wait for ours.
+ConditionPathExists=%E/voxtype/config.toml
+# wtype types through the compositor, so there is nothing to type into without one.
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+# Quiet, because at its default level every transcript is written to the journal.
+ExecStart=/usr/bin/voxtype -q daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=sway-session.target

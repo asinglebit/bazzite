@@ -10,6 +10,7 @@ The parts of the image, each in its own note.
 | [[Theming]] | What it all looks like: the greyscale palette, GTK, icons, fonts. |
 | [[Workspaces]] | Per-screen blocks of ten, and the helper that works them out. |
 | [[Applications]] | Flatpaks, the terminal, and what Plasma's removal took with it. |
+| [[Dictation]] | Hold a key, speak, and the words are typed into the focused window. |
 
 ## The one-paragraph version
 

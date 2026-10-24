@@ -20,6 +20,7 @@ export CTX
 "${CTX}/build_files/30-kde-remove.sh"
 
 "${CTX}/build_files/35-devel-install.sh"
+"${CTX}/build_files/36-voxtype.sh"
 "${CTX}/build_files/40-branding.sh"
 
 # After 40, because it depends on branding leaving base-image-name as "kinoite".

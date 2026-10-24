@@ -22,9 +22,9 @@ Fedora 44. Sway is the only session offered.
 | --- | --- |
 | `Containerfile` | `FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable`, then one `RUN` of `build_files/build.sh` |
 | `Justfile` | Every command below. `build-image` is the single build path, so CI and a local build produce the same image |
-| `build_files/` | The build, in order: `10` desktop packages + NVIDIA env + fonts + icons, `15` swap sway for swayfx, `17` the greeter, `18` the shell, `20` greetd as DM, `30` remove Plasma, `35` `-devel` headers for an unrelated project, `40` branding, `45` patch upstream's broken `bazzite-user-setup`, `50` cosign trust |
-| `system_files/` | Copied verbatim into the image: greetd config, the greeter's wrapper and `greeter.toml`, the shell's systemd unit, tmpfiles rules, the gschema override, and the comment-only `/etc/sway/config.d/` files that retire Fedora's drop-ins |
-| `dotfiles/` | Per-user **desktop** config — outputs, input, appearance, effects, wallpaper, GTK theming, `noctalia/`. Symlinked into `~/.config`; never enters the image |
+| `build_files/` | The build, in order: `10` desktop packages + NVIDIA env + fonts + icons, `15` swap sway for swayfx, `17` the greeter, `18` the shell, `20` greetd as DM, `30` remove Plasma, `35` `-devel` headers for an unrelated project, `36` voxtype dictation, `40` branding, `45` patch upstream's broken `bazzite-user-setup`, `50` cosign trust |
+| `system_files/` | Copied verbatim into the image: greetd config, the greeter's wrapper and `greeter.toml`, the systemd units for the shell and voxtype, tmpfiles rules, the gschema override, and the comment-only `/etc/sway/config.d/` files that retire Fedora's drop-ins |
+| `dotfiles/` | Per-user **desktop** config — outputs, input, appearance, effects, wallpaper, GTK theming, `noctalia/`, `voxtype/`. Symlinked into `~/.config`; never enters the image |
 | `flatpaks.list` | The apps this desktop adds on top of Bazzite's own set, and the defaults it takes back off. `just install-flatpaks` reconciles both; nothing here enters the image |
 | `docs/` | An Obsidian vault: architecture, components, the reasoning behind each choice, and what updates when. Start at `docs/README.md` |
 | `verify.sh` | Post-boot checks: the assertions needing a running session, a GPU and a seat, which the build cannot make |
@@ -160,6 +160,8 @@ The image carries the desktop and no per-user config.
 just link-dotfiles && swaymsg reload   # this repo's desktop config
 just install-flatpaks                  # the apps on top of Bazzite's own set
 just greeter-avatar                    # bind the login-screen avatar to this account
+voxtype setup --download               # the Whisper model behind $mod+x dictation
+systemctl --user restart voxtype       # start dictation now rather than at the next login
 just check-shell-config                # optional: validate the config as committed
 ```
 
@@ -182,6 +184,11 @@ yourself.
 `greeter-avatar` cannot be part of the image: the greeter reads the user's `IconFile` from
 AccountsService, which is per-user state under `/var`. Without it the login screen draws its stock
 line-art person. Re-run after a reinstall; `verify.sh` reports whether it has been.
+
+`voxtype setup --download` fetches the 1.6 GB model into `~/.local/share/voxtype` and skips it when
+it is already there. Hold `$mod+x`, speak, let go, and the text is typed into the focused window.
+The service waits for the config `link-dotfiles` provides, which is why the first time needs the
+restart; after that it starts with the session. See `docs/Components/Dictation.md`.
 
 ## Checking and recovering
 
@@ -241,6 +248,9 @@ the image (`**.md`, `dotfiles/**` and `verify.sh` are ignored), on pull requests
   1–10 on the left, 11–20 in the middle, 21–30 on the right — so a number key never moves focus to
   another monitor. Unplugging a screen strands its ten on the others and shifts the screens to its
   right down by ten until it is back; `verify.sh` warns about it.
+- **Dictation picks one language per recording.** Whisper decides between English and Russian for
+  the whole clip, so English terms inside a Russian sentence can come out in Cyrillic. The model
+  comes from Hugging Face when `voxtype setup --download` runs, outside the image and unpinned.
 - **No HDR** (SwayFX is built on sway 1.12, which has it, but its `fx_renderer` cannot do the
   colour transforms HDR needs) and **no Vulkan renderer** (`fx_renderer` is GLES2-only). VRR
   does work.

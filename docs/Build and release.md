@@ -25,6 +25,7 @@ are commented as such in the file:
 | `20-display-manager` | greetd as the display manager | **Before 30**, so the image never points `display-manager.service` at a package that is gone |
 | `30-kde-remove` | Remove Plasma and KDE apps | |
 | `35-devel-install` | `-devel` headers for an unrelated project | |
+| `36-voxtype` | The dictation daemon, pinned by checksum, and its unit | |
 | `40-branding` | os-release, image-info, GRUB label, disable uupd | |
 | `45-bazzite-user-setup` | Patch upstream's broken login script | **After 40**, which must leave `base-image-name` as `kinoite` |
 | `50-signing` | cosign trust files | |

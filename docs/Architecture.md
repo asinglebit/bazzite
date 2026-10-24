@@ -49,7 +49,7 @@ supported way back to Fedora's bar or locker, which is why they are in `/etc` an
 ## Ownership
 
 Exactly one thing owns any given path. `dotfiles/` here owns the *desktop* half of
-`~/.config` — sway, noctalia, GTK. Shell, toolchains, tmux and Ghostty's own config live
+`~/.config` — sway, noctalia, GTK, voxtype. Shell, toolchains, tmux and Ghostty's own config live
 in a separate portable repo, and the two never touch the same path. That is what lets
 either one be absent.
 

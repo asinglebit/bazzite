@@ -540,6 +540,58 @@ if [[ $fail -gt $noctalia_fail_at_start ]]; then
     journalctl --user -u noctalia -b -n 10 --no-pager 2>/dev/null | sed 's/^/      /'
 fi
 
+head_ "Dictation (voxtype)"
+# Downloaded rather than packaged, so nothing else would notice it gone or swapped for the CPU build.
+if voxtype_libs=$(ldd /usr/bin/voxtype 2>/dev/null); then
+    [[ "$voxtype_libs" == *libvulkan.so.1* ]] \
+        && ok "voxtype is the Vulkan build ($(voxtype --version 2>/dev/null))" \
+        || no "voxtype is NOT the Vulkan build -- every sentence takes seconds on the CPU"
+else
+    no "/usr/bin/voxtype MISSING -- 36-voxtype.sh did not install it"
+fi
+
+# The unit waits for this file, so without it voxtype never starts and $mod+x does nothing.
+voxtype_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/voxtype/config.toml"
+if [ ! -e "$voxtype_cfg" ]; then
+    no "no $voxtype_cfg -- voxtype.service stays inert; run: just link-dotfiles"
+elif [ ! -L "$voxtype_cfg" ]; then
+    meh "voxtype config is a real file, not a link into this repo -- 'voxtype configure' saves by replacing the link"
+else
+    ok "voxtype config linked"
+fi
+
+if systemctl --user is-active --quiet voxtype; then
+    ok "voxtype.service active"
+else
+    no "voxtype.service NOT active -- \$mod+x records nothing; systemctl --user restart voxtype"
+    journalctl --user -u voxtype -b -n 5 --no-pager 2>/dev/null | sed 's/^/      /'
+fi
+[ -L /usr/lib/systemd/user/sway-session.target.wants/voxtype.service ] \
+    && ok "voxtype wanted by sway-session.target" \
+    || no "voxtype not wired to sway-session.target -- it will not start at login"
+
+# Nothing loads the model before the first recording, which is when a missing one would surface.
+# Only with the config linked, because without it voxtype names its own default and the hint fetches the wrong model.
+if [ -e "$voxtype_cfg" ]; then
+    voxtype_model=$(voxtype config 2>/dev/null | sed -n 's/^  model = "\(.*\)"$/\1/p' | head -1)
+    if [ -s "${XDG_DATA_HOME:-$HOME/.local/share}/voxtype/models/ggml-${voxtype_model}.bin" ]; then
+        ok "Whisper model $voxtype_model downloaded"
+    else
+        no "Whisper model ${voxtype_model:-unknown} not downloaded -- run: voxtype setup --download"
+    fi
+fi
+
+# voxtype's hooks switch into these, and with -q a hook naming a missing mode leaves no trace.
+voxtype_modes=$(swaymsg -t get_binding_modes -r 2>/dev/null | jq -r '.[]' 2>/dev/null)
+if grep -qx dictating <<<"$voxtype_modes" && grep -qx typing <<<"$voxtype_modes"; then
+    ok "sway has the dictating and typing modes"
+else
+    no "sway lacks the dictating/typing modes -- a held Super turns dictated text into shortcuts"
+fi
+grep -q 'voxtype record stop' "${XDG_CONFIG_HOME:-$HOME/.config}/sway/config.d/40-bindings.conf" 2>/dev/null \
+    && ok "\$mod+x dictation binding present" \
+    || no "nothing in 40-bindings.conf runs voxtype -- there is no key to dictate with"
+
 
 head_ "Theming"
 fc-list -q 'Inter' && ok "Inter installed (GTK UI font)" || no "Inter MISSING -- GTK text falls back"

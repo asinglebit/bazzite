@@ -1,0 +1,32 @@
+# Anything not set here falls back to voxtype's built-in default.
+
+# Sway's binding drives recording, so voxtype never needs to read the keyboard itself.
+[hotkey]
+enabled = false
+
+[whisper]
+model = "large-v3-turbo"
+# Choosing from all 99 languages, Whisper can misdetect short phrases.
+language = ["en", "ru"]
+# The model is loaded only while recording, so a game never shares VRAM with it.
+gpu_isolation = true
+
+# Sway modes from sway/config.d/40-bindings.conf.
+[output]
+pre_recording_command = "swaymsg mode dictating"
+pre_output_command = "swaymsg mode typing"
+post_output_command = "swaymsg mode default"
+
+# The text already appears at the cursor.
+[output.notification]
+on_transcription = false
+
+# The waveform needs a separate voxtype-osd binary, and the bar already shows "dictating".
+[osd]
+enabled = false
+
+# Drops recordings with no speech, which Whisper would otherwise fill with invented text.
+[vad]
+enabled = true
+# The energy detector needs no second model download.
+backend = "energy"

@@ -28,15 +28,19 @@ The image carries the desktop and no per-user config.
 just link-dotfiles && swaymsg reload   # this repo's desktop config
 just install-flatpaks                  # the apps on top of Bazzite's own set
 just greeter-avatar                    # bind the login-screen avatar to this account
+voxtype setup --download               # the Whisper model behind $mod+x dictation
+systemctl --user restart voxtype       # start dictation now rather than at the next login
 just check-shell-config                # optional: validate the config as committed
 ```
 
-All four are idempotent and all four are re-run after a reinstall. `link-dotfiles` backs
+All of them are idempotent and all of them are re-run after a reinstall. `link-dotfiles` backs
 up anything in the way with a timestamp and prunes symlinks this repo no longer ships —
 which matters most in `sway/config.d/`, where a dangling link stops sway loading at all.
 
 The desktop works without any of it, on stock defaults. What they add is the palette, the
-monitor layout, the [[Workspaces|per-screen workspaces]], the plugins and the apps.
+monitor layout, the [[Workspaces|per-screen workspaces]], the plugins, the apps and
+[[Dictation|dictation]], whose service waits for the config `link-dotfiles` provides — hence
+the restart the first time.
 
 ## Day to day
 

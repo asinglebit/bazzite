@@ -130,6 +130,14 @@ jobs:
           # fc-list -q, not a grep pipe, which SIGPIPEs a match into a failure.
           fc-list -q 'Hack Nerd Font Mono'
 
+          # voxtype too; without libvulkan it is the CPU build, and every sentence takes seconds.
+          voxtype_libs="$(ldd /usr/bin/voxtype)"
+          [[ "$voxtype_libs" == *libvulkan.so.1* ]]
+          [[ "$voxtype_libs" != *"not found"* ]]
+          test -L /usr/lib/systemd/user/sway-session.target.wants/voxtype.service
+          # Inert until dotfiles link a config, because its defaults read the keyboard and exit.
+          grep -q '^ConditionPathExists=%E/voxtype/config.toml$' /usr/lib/systemd/user/voxtype.service
+
           # --whatprovides, because swayfx provides sway and no package is named sway.
           rpm -q swayfx
           rpm -q --whatprovides sway >/dev/null
