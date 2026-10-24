@@ -130,14 +130,16 @@ jobs:
           # fc-list -q, not a grep pipe, which SIGPIPEs a match into a failure.
           fc-list -q 'Hack Nerd Font Mono'
 
-          # swayfx needs the old libwlroots-0.19, so the day F44 drops it this must fail here.
           # --whatprovides, because swayfx provides sway and no package is named sway.
           rpm -q swayfx
           rpm -q --whatprovides sway >/dev/null
           test -x /usr/bin/sway
           # Into a variable, not a grep pipe, which SIGPIPEs a match into a failure.
           sway_libs="$(ldd /usr/bin/sway)"
-          [[ "$sway_libs" == *libwlroots-0.19.so* ]]
+          # swayfx must link the wlroots Fedora ships, read from the package so a version bump needs no edit.
+          wlroots_provides="$(rpm -q --provides wlroots)"
+          [[ "$wlroots_provides" =~ libwlroots-[0-9.]+\.so ]]
+          [[ "$sway_libs" == *"${BASH_REMATCH[0]}"* ]]
           [[ "$sway_libs" == *libscenefx* ]]
           # sway-config-fedora owns /etc/sway/config and start-sway, so it must survive.
           rpm -q sway-config-fedora sway-systemd >/dev/null
@@ -194,7 +196,7 @@ jobs:
           # Without this alias the greeter cannot write its state and the screen stays blank.
           grep -q '^/var/lib/noctalia-greeter /var/lib/greetd$' \
             /etc/selinux/targeted/contexts/files/file_contexts.subs
-          # wlroots 0.20 for the greeter, 0.19 for swayfx, both from Fedora.
+          # wlroots 0.20 for the greeter, and Fedora's rather than Terra's.
           greeter_libs="$(ldd /usr/bin/noctalia-greeter-compositor)"
           [[ "$greeter_libs" == *libwlroots-0.20.so* ]]
           [[ "$(rpm -q --queryformat '%{VENDOR}' wlroots)" == "Fedora Project" ]]

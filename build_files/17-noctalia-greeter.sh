@@ -77,13 +77,11 @@ TOMLCHECK
 greeter_sessions="$(noctalia-greeter sessions)"
 [[ "${greeter_sessions}" == *Sway* ]]
 
-# The greeter and sway need different wlroots versions and are meant to coexist.
+# The greeter brings its own compositor, linked against Fedora's wlroots and GLES.
 greeter_libs="$(ldd /usr/bin/noctalia-greeter-compositor)"
 [[ "${greeter_libs}" == *libwlroots-0.20.so* ]]
 [[ "${greeter_libs}" == *libEGL*             ]]
 [[ "${greeter_libs}" == *libGLESv2*          ]]
-sway_libs="$(ldd /usr/bin/sway)"
-[[ "${sway_libs}" == *libwlroots-0.19.so* ]]
 
 # Terra ships its own wlroots, and it replacing Fedora's would not be obvious.
 [[ "$(rpm -q --queryformat '%{VENDOR}' wlroots)" == "Fedora Project" ]]

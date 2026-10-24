@@ -154,8 +154,11 @@ test -f /usr/share/xdg-desktop-portal/sway-portals.conf
 cat >> /etc/sway/environment <<'ENVEOF'
 
 ### Bazzite-Sway: NVIDIA (nvidia-open, Ada) ####################################
-# sway refuses to start on this driver without the first flag; the second fixes NVIDIA flicker.
-SWAY_EXTRA_ARGS="$SWAY_EXTRA_ARGS --unsupported-gpu -D noscanout"
+# sway refuses to start on this driver without this flag.
+SWAY_EXTRA_ARGS="$SWAY_EXTRA_ARGS --unsupported-gpu"
+
+# Turns off direct scanout, the standard fix for flicker and black frames on NVIDIA.
+WLR_SCENE_DISABLE_DIRECT_SCANOUT=1
 
 # On Vulkan SwayFX starts and draws none of its effects.
 WLR_RENDERER=gles2

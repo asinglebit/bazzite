@@ -25,10 +25,13 @@ swaymsg -t get_version >/dev/null 2>&1 && ok "sway IPC responding ($(swaymsg -t 
 head_ "Compositor (SwayFX)"
 rpm -q --quiet swayfx && ok "swayfx installed ($(rpm -q swayfx))" \
     || no "swayfx NOT installed -- effects config in 25-effects.conf will fail to parse"
-# The staleness tripwire from the build, repeated here: swayfx needs an old wlroots.
-ldd /usr/bin/sway 2>/dev/null | grep -q 'libwlroots-0.19.so' \
-    && ok "sway links libwlroots-0.19 (the ABI swayfx was built against)" \
-    || no "sway does NOT link libwlroots-0.19 -- swayfx ABI drift, rebuild needed"
+# The build's tripwire, repeated here: swayfx must link the wlroots Fedora ships.
+if [[ "$(rpm -q --provides wlroots 2>/dev/null)" =~ libwlroots-[0-9.]+\.so ]] \
+   && ldd /usr/bin/sway 2>/dev/null | grep -qF "${BASH_REMATCH[0]}"; then
+    ok "sway links ${BASH_REMATCH[0]}, the wlroots Fedora ships"
+else
+    no "sway does NOT link the wlroots Fedora ships -- swayfx ABI drift, rebuild needed"
+fi
 ldd /usr/bin/sway 2>/dev/null | grep -q 'libscenefx' \
     && ok "sway links libscenefx (the effects renderer)" || no "libscenefx missing"
 grep -q '^WLR_RENDERER=gles2$' /etc/sway/environment \

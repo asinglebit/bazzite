@@ -36,8 +36,8 @@ what lets `just greeter-preview` run that exact file nested inside a live sessio
 renderer proven on nvidia-open, and the upstream fallback for NVIDIA swapchain errors
 has "nothing is displayed" as its symptom.
 
-`--unsupported-gpu` and `-D noscanout` are deliberately *not* set: those are sway's own
-guards, and this compositor does not have them.
+`--unsupported-gpu` is deliberately *not* set: it is sway's own guard, and this compositor
+does not have it.
 
 ## greeter.toml takes a detour
 

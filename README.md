@@ -241,8 +241,9 @@ the image (`**.md`, `dotfiles/**` and `verify.sh` are ignored), on pull requests
   1–10 on the left, 11–20 in the middle, 21–30 on the right — so a number key never moves focus to
   another monitor. Unplugging a screen strands its ten on the others and shifts the screens to its
   right down by ten until it is back; `verify.sh` warns about it.
-- **No HDR** (`color-management-v1` is sway 1.12; F44 has 1.11) and **no Vulkan renderer**
-  (SwayFX's `fx_renderer` is GLES2-only). VRR does work.
+- **No HDR** (SwayFX is built on sway 1.12, which has it, but its `fx_renderer` cannot do the
+  colour transforms HDR needs) and **no Vulkan renderer** (`fx_renderer` is GLES2-only). VRR
+  does work.
 - **No screen recording** — noctalia's capture is stills. **Screen sharing is whole-output only**;
   `xdg-desktop-portal-wlr` has no window picker, which is why the bar has a `privacy` widget.
 - **The login screen does not match the desktop exactly.** noctalia-greeter treats

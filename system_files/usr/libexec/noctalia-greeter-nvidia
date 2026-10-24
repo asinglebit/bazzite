@@ -7,7 +7,7 @@
 : "${WLR_RENDERER:=gles2}"
 export WLR_RENDERER
 
-# Deliberately unset: --unsupported-gpu and -D noscanout are sway guards this compositor lacks.
+# Deliberately unset: --unsupported-gpu is a sway guard this compositor lacks.
 # WLR_BACKENDS is left to autodetect, so this works on VT 1 and nested alike.
 # For black frames or tearing here, the wlroots equivalent is WLR_DRM_NO_MODIFIERS=1.
 

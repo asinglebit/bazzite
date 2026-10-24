@@ -14,18 +14,15 @@ drags in the packages [[Architecture|retired rather than removed]].
 Because `swayfx` carries `Conflicts: sway`, there is no package called `sway` any more.
 Anything checking for it uses `rpm -q --whatprovides sway`.
 
-## The wlroots pin
+## wlroots
 
-SwayFX links `libwlroots-0.19`, which Fedora 44 still ships as a compat package. The
-upstream COPR build is old and nobody has rebuilt it against 0.20.
-
-This is the image's most likely future breakage, so it is a deliberate tripwire: the build
-asserts `ldd /usr/bin/sway` contains `libwlroots-0.19.so`, and CI repeats it. The day
-Fedora retires that compat package, the nightly fails instead of publishing a desktop that
-cannot start.
-
-The [[Login screen]] runs wlroots **0.20** at the same time. The two coexist on purpose,
-and the build asserts each is on its own.
+SwayFX links the wlroots Fedora itself ships, the same one the [[Login screen]] uses.
+The two drifting apart — Fedora moving on while SwayFX stays behind — is still the image's
+most likely future breakage, so it is a deliberate tripwire: the build reads the library
+name out of Fedora's `wlroots` package and asserts `ldd /usr/bin/sway` contains it, and CI
+and `verify.sh` repeat it. Read rather than written down, so a wlroots bump both sides
+take needs no edit, and one only Fedora takes fails the nightly instead of publishing a
+desktop that cannot start.
 
 ## NVIDIA
 
@@ -34,7 +31,7 @@ From `/etc/sway/environment`, written by `build_files/10-sway-install.sh`:
 | Variable | Why |
 | --- | --- |
 | `SWAY_EXTRA_ARGS=--unsupported-gpu` | sway refuses to start on this driver without it. |
-| `-D noscanout` | The standard fix for flicker and black frames on NVIDIA. |
+| `WLR_SCENE_DISABLE_DIRECT_SCANOUT=1` | Turns off direct scanout, the standard fix for flicker and black frames on NVIDIA. Sway's own `-D noscanout` is gone since 1.12, and only logs an error if passed. |
 | `WLR_RENDERER=gles2` | SwayFX's `fx_renderer` is GLES2-only. |
 | `LIBVA_DRIVER_NAME=nvidia`, `NVD_BACKEND=direct` | Hardware video decode. |
 | `ELECTRON_OZONE_PLATFORM_HINT=auto` | Electron apps get Wayland rather than XWayland. |
@@ -43,8 +40,9 @@ From `/etc/sway/environment`, written by `build_files/10-sway-install.sh`:
 perfectly and simply draws **none** of its effects. Both the build and `verify.sh` check
 the value rather than trusting it.
 
-Two consequences fall out of the GLES2 pin: no Vulkan renderer, and no HDR
-(`color-management-v1` landed in sway 1.12; F44 has 1.11). VRR does work.
+Two consequences fall out of the GLES2 pin: no Vulkan renderer, and no HDR — SwayFX is
+built on sway 1.12, which has it, but `fx_renderer` cannot do the output colour transforms
+HDR needs. VRR does work.
 
 ## Effects
 

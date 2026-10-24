@@ -23,7 +23,7 @@ the shorter answer and these notes are the reason behind it.
 - **[[Architecture]]** — the three layers (image, `/etc`, `~/.config`) and the rule that
   decides which one a given file belongs in.
 - **[[Components]]** — index of the parts:
-  - [[Compositor]] — SwayFX, the wlroots pin, the NVIDIA flags, the effects.
+  - [[Compositor]] — SwayFX, its wlroots tripwire, the NVIDIA flags, the effects.
   - [[Shell]] — noctalia, which is everything except the compositor.
   - [[Login screen]] — greetd, noctalia-greeter and its own compositor.
   - [[Theming]] — the greyscale palette and the four places it has to be repeated.

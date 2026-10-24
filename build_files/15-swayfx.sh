@@ -38,8 +38,10 @@ sway_libs="$(ldd /usr/bin/sway)"
 # The binary has to sit at sway's own path, or everything pointing at it breaks.
 test -x /usr/bin/sway
 
-# swayfx needs an old wlroots that Fedora will drop one day, and that day must fail the build.
-[[ "${sway_libs}" == *libwlroots-0.19.so* ]]
+# swayfx must link the wlroots Fedora ships, read from the package so a version bump needs no edit.
+wlroots_provides="$(rpm -q --provides wlroots)"
+[[ "${wlroots_provides}" =~ libwlroots-[0-9.]+\.so ]]
+[[ "${sway_libs}" == *"${BASH_REMATCH[0]}"* ]]
 
 # Removing sway must not have taken the config packages with it.
 rpm -q sway-config-fedora sway-systemd grimshot
