@@ -60,7 +60,9 @@ grep -aq 'org.kde.StatusNotifierHost'                 /usr/bin/noctalia
 grep -aq 'RegisterStatusNotifierHost'                 /usr/bin/noctalia
 
 # ddcutil is the only way to change brightness on this hardware, and wtype is the clipboard paste.
-rpm -q ddcutil wtype
+# --whatprovides, because Bazzite's ddcutil is Terra's build, named terra-ddcutil.
+rpm -q --whatprovides ddcutil
+rpm -q wtype
 
 # Must be a GLES client to match the renderer, or the bar comes up blank instead of failing.
 noctalia_libs="$(ldd /usr/bin/noctalia)"

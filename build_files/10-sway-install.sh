@@ -6,6 +6,7 @@ CTX="${CTX:-/ctx}"
 
 # Optional dependencies are off in this base image, so everything needed must be named here.
 # sway-config-fedora drags in waybar and swaylock, which config retires rather than excludes.
+# ddcutil by path, because Bazzite now ships Terra's build, which conflicts with a request by name.
 dnf5 --exclude=sway-config-upstream,rofi install -y \
     sway \
     sway-config-fedora \
@@ -28,7 +29,7 @@ dnf5 --exclude=sway-config-upstream,rofi install -y \
     imv \
     wl-clipboard \
     wtype \
-    ddcutil \
+    /usr/bin/ddcutil \
     wlr-randr \
     kanshi \
     wlsunset \

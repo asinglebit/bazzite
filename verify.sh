@@ -615,10 +615,15 @@ head_ "Bazzite gaming stack intact"
 for b in steam gamescope mangohud; do
     command -v "$b" >/dev/null && ok "$b present" || no "$b MISSING"
 done
-rpm -q --quiet xorg-x11-server-Xwayland && \
-    { rpm -q xorg-x11-server-Xwayland | grep -q bazzite \
-        && ok "Xwayland is still Bazzite's patched build" \
-        || no "Xwayland is NOT the Bazzite build -- a versionlock was broken"; }
+# Asked of the file, since Bazzite has renamed its patched build before; only Fedora's stock one is wrong.
+xwayland_pkg=$(rpm -qf /usr/bin/Xwayland 2>/dev/null)
+if [ -z "$xwayland_pkg" ]; then
+    no "Xwayland MISSING -- X11 games and Steam cannot start"
+elif [[ "$(rpm -q --qf '%{VENDOR}' "$xwayland_pkg")" == "Fedora Project" ]]; then
+    no "Xwayland is Fedora's stock build ($xwayland_pkg) -- Bazzite's patched one was replaced; a versionlock broke"
+else
+    ok "Xwayland is Bazzite's patched build ($xwayland_pkg)"
+fi
 uname -r | grep -q ogc && ok "Bazzite ogc kernel ($(uname -r))" || no "not on the ogc kernel: $(uname -r)"
 
 head_ "Qt keepers (should survive KDE removal)"

@@ -61,7 +61,8 @@ if rpm -q fcitx5 >/dev/null 2>&1; then
 fi
 
 # Everything below has to fail the build rather than surface later on a booted machine.
-rpm -q xorg-x11-server-Xwayland
+# --whatprovides, because Bazzite's Xwayland is Terra's build, named terra-xorg-x11-server-Xwayland.
+rpm -q --whatprovides xorg-x11-server-Xwayland
 rpm -q xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-wlr
 # --whatprovides, because the sway package was swapped for swayfx in an earlier step.
 rpm -q --whatprovides sway
