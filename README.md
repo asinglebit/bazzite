@@ -186,9 +186,9 @@ AccountsService, which is per-user state under `/var`. Without it the login scre
 line-art person. Re-run after a reinstall; `verify.sh` reports whether it has been.
 
 `voxtype setup --download` fetches the 1.6 GB model into `~/.local/share/voxtype` and skips it when
-it is already there. Hold `$mod+x`, speak, let go, and the text is typed into the focused window.
-The service waits for the config `link-dotfiles` provides, which is why the first time needs the
-restart; after that it starts with the session. See `docs/Components/Dictation.md`.
+it is already there. Press `$mod+x`, speak, press it again, and the text is typed into the focused
+window. The service waits for the config `link-dotfiles` provides, which is why the first time
+needs the restart; after that it starts with the session. See `docs/Components/Dictation.md`.
 
 ## Checking and recovering
 

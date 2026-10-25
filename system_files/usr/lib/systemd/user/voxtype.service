@@ -1,5 +1,5 @@
 [Unit]
-Description=voxtype (hold-to-talk dictation into the focused window)
+Description=voxtype (dictation into the focused window)
 Documentation=https://github.com/peteonrails/voxtype
 PartOf=graphical-session.target
 After=graphical-session.target pipewire.service

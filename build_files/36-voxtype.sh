@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# Installs voxtype: hold a key, speak, and it types what you said into the focused window.
+# Installs voxtype, which types what you say into the focused window.
 # Its settings and binding live in dotfiles/, and its unit stays inert until they are linked.
 set -euxo pipefail
 

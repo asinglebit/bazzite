@@ -1,16 +1,18 @@
 # Dictation
 
-Hold `$mod+x`, speak, let go, and the words are typed into whatever window has focus —
-terminal, browser, anything. [voxtype](https://github.com/peteonrails/voxtype) records and
-transcribes; Whisper runs on the GPU on this machine, so no audio leaves it. English and
-Russian, picked per recording.
+Press `$mod+x`, speak, press it again, and the words are typed into whatever window has
+focus — terminal, browser, anything. [voxtype](https://github.com/peteonrails/voxtype)
+records and transcribes; Whisper runs on the GPU on this machine, so no audio leaves it.
+English and Russian, picked per recording.
 
-## What one press does
+## What the two presses do
 
-1. `$mod+x` runs `voxtype record start`. The daemon switches sway into the `dictating`
-   mode — which the bar's mode widget shows — and starts recording.
-2. Letting go runs `voxtype record stop`. Sway captures a release binding when the key
-   goes *down*, so it still fires after the mode switch, whichever key is let go first.
+1. `$mod+x` runs `voxtype record toggle`, which finds the daemon idle and starts a
+   recording. The daemon switches sway into the `dictating` mode — which the bar's mode
+   widget shows — and noctalia's privacy OSD shows the microphone in use.
+2. The second `$mod+x` lands in the `dictating` mode, which carries its own copy of the
+   binding, because a sway mode sees no binding from outside it. The same command now
+   finds the daemon recording and stops it.
 3. Voice-activity detection drops a recording with no speech in it. Without that, Whisper
    fills silence with invented text — in Russian, typically "Продолжение следует...".
 4. Whisper transcribes, choosing only between English and Russian, because choosing from
@@ -40,6 +42,11 @@ languages spoken, a model sized for 12 GB of VRAM.
 Vulkan build alone is 63 MiB, needs no CUDA toolkit, and runs on any vendor's GPU. It is
 pinned by version and checksum, like the other downloads.
 
+**`toggle` in both modes.** Whether a press starts or stops is decided by the daemon's
+own state rather than by sway's mode, so the key still works when the two disagree. A
+`swaymsg reload` mid-recording puts sway back in the default mode, where a `record start`
+would be ignored and the recording would run on to voxtype's 60-second cap.
+
 **Inert until configured.** voxtype's built-in defaults read the keyboard through
 `/dev/input` and exit without the `input` group. So the unit carries
 `ConditionPathExists=%E/voxtype/config.toml`: with no linked config it does not start,
@@ -65,6 +72,9 @@ journal, so the unit runs it with `-q`, which logs errors only.
 - **The first recording fails with a missing model.** `voxtype setup --download` has not
   been run for this user.
 - **Sway is stuck in `dictating` or `typing`.** voxtype died mid-recording. Press F12.
+- **A long dictation is typed before the second press.** voxtype stops a recording at
+  60 seconds (`max_duration_secs` under `[audio]`) and types what it heard. Press `$mod+x`
+  again to carry on.
 - **The config stopped following the repo.** `voxtype configure` saves by swapping a new
   file in, which replaces the symlink. `verify.sh` warns, and `just link-dotfiles` backs
   the file up and links the repo's copy again.

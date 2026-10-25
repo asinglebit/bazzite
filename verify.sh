@@ -588,9 +588,14 @@ if grep -qx dictating <<<"$voxtype_modes" && grep -qx typing <<<"$voxtype_modes"
 else
     no "sway lacks the dictating/typing modes -- a held Super turns dictated text into shortcuts"
 fi
-grep -q 'voxtype record stop' "${XDG_CONFIG_HOME:-$HOME/.config}/sway/config.d/40-bindings.conf" 2>/dev/null \
-    && ok "\$mod+x dictation binding present" \
-    || no "nothing in 40-bindings.conf runs voxtype -- there is no key to dictate with"
+voxtype_bindings="${XDG_CONFIG_HOME:-$HOME/.config}/sway/config.d/40-bindings.conf"
+if ! grep -q 'voxtype record toggle' "$voxtype_bindings" 2>/dev/null; then
+    no "nothing in 40-bindings.conf runs voxtype -- there is no key to dictate with"
+elif ! sed -n '/^mode "dictating" {/,/^}/p' "$voxtype_bindings" | grep -q 'voxtype record toggle'; then
+    no "the dictating mode has no \$mod+x -- a recording runs until voxtype's 60 s cap"
+else
+    ok "\$mod+x starts and stops dictation"
+fi
 
 
 head_ "Theming"

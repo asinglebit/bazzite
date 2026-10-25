@@ -29,7 +29,7 @@ the shorter answer and these notes are the reason behind it.
   - [[Theming]] — the greyscale palette and the four places it has to be repeated.
   - [[Workspaces]] — a block of ten per screen, derived at runtime.
   - [[Applications]] — flatpaks, the terminal, and what left with KDE.
-  - [[Dictation]] — voxtype: hold `$mod+x`, speak, and the text is typed where focus is.
+  - [[Dictation]] — voxtype: press `$mod+x`, speak, press it again, and the text is typed where focus is.
 - **[[Build and release]]** — Containerfile, the numbered build steps, rechunking, signing, CI.
 - **[[Cadence]]** — what updates nightly, what updates when asked, and what never updates itself.
 - **[[Decisions]]** — the choices, each with the alternative that was rejected.
