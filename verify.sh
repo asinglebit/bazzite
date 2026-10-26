@@ -309,6 +309,17 @@ rpm -q --quiet network-manager-applet \
     && meh "network-manager-applet is installed again -- it will race noctalia as NM's secret agent" \
     || ok "network-manager-applet gone (noctalia is the NM secret agent)"
 
+# USB drives mount under /run/media, outside both browsers' sandboxes.
+for app in com.google.Chrome org.mozilla.firefox; do
+    flatpak override --user --show "$app" 2>/dev/null | grep -q '^filesystems=.*/run/media:ro' \
+        && ok "$app can read USB drives (read-only)" \
+        || meh "$app cannot see USB drives -- run 'just flatpak-overrides'"
+done
+# Fires on every exFAT/NTFS plug-in and reads as a broken drive, when it only concerns games.
+systemctl --user is-enabled --quiet ntfs-nag.service \
+    && meh "Bazzite's NTFS/exFAT pop-up is enabled -- 40-branding.sh disables it from the next image on" \
+    || ok "Bazzite's NTFS/exFAT pop-up disabled"
+
 # Downloaded rather than packaged, and a silent fallback to Noto is easy to miss.
 fc-list -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \
     || no "Hack Nerd Font Mono MISSING -- bar, terminal and launcher fall back to Noto"

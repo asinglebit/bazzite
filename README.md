@@ -159,6 +159,7 @@ The image carries the desktop and no per-user config.
 ```bash
 just link-dotfiles && swaymsg reload   # this repo's desktop config
 just install-flatpaks                  # the apps on top of Bazzite's own set
+just flatpak-overrides                 # let both browsers read USB drives
 just greeter-avatar                    # bind the login-screen avatar to this account
 voxtype setup --download               # the Whisper model behind $mod+x dictation
 systemctl --user restart voxtype       # start dictation now rather than at the next login
@@ -180,6 +181,10 @@ alone, so their settings survive.
 Those two sections are the only things it will ever act on. An app installed by hand and written
 down nowhere is reported rather than removed, so you can add it to a section or deal with it
 yourself.
+
+`flatpak-overrides` lets both browsers read USB drives, which mount under `/run/media`, outside
+their sandbox. Without it a typed path or a dragged-in file is not found, and a double-click hands
+over that one file alone, so the page loses its own styles and images. The access is read-only.
 
 `greeter-avatar` cannot be part of the image: the greeter reads the user's `IconFile` from
 AccountsService, which is per-user state under `/var`. Without it the login screen draws its stock

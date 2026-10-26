@@ -41,3 +41,8 @@ rm -f /etc/profile.d/user-motd.sh
 
 # uBlue's updater would fire nightly against a ref it cannot upgrade, so updates stay manual.
 systemctl disable uupd.timer || true
+
+# Bazzite's NTFS/exFAT pop-up calls drives "unsupported" that are fine for anything but games.
+test -L /etc/systemd/user/xdg-desktop-autostart.target.wants/ntfs-nag.service
+systemctl --global disable ntfs-nag.service
+test ! -L /etc/systemd/user/xdg-desktop-autostart.target.wants/ntfs-nag.service

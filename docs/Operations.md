@@ -27,6 +27,7 @@ The image carries the desktop and no per-user config.
 ```bash
 just link-dotfiles && swaymsg reload   # this repo's desktop config
 just install-flatpaks                  # the apps on top of Bazzite's own set
+just flatpak-overrides                 # let both browsers read USB drives
 just greeter-avatar                    # bind the login-screen avatar to this account
 voxtype setup --download               # the Whisper model behind $mod+x dictation
 systemctl --user restart voxtype       # start dictation now rather than at the next login

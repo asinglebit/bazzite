@@ -23,6 +23,17 @@ Bazzite ships Flathub **filtered** through `/usr/share/ublue-os/flatpak-blocklis
 denies Steam and Lutris because the image already carries them. Those two can never be
 installed from this list.
 
+## USB drives
+
+Drives mount under `/run/media/$USER`, outside both browsers' sandboxes, so
+`just flatpak-overrides` grants Chrome and Firefox read-only access there. Without it a
+page on a drive is either not found or, from a double-click, handed over as that one file
+alone, missing its own styles, scripts and images.
+
+exFAT and NTFS drives work for files. Bazzite's "Unsupported filesystem" pop-up only means
+games misbehave on them, so `40-branding.sh` disables it rather than have it fire on every
+plug-in.
+
 ## The terminal
 
 **ghostty**, from Terra, in its own dnf transaction so Terra cannot quietly satisfy

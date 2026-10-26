@@ -336,6 +336,14 @@ install-flatpaks:
     echo
     echo "${#want[@]} listed, ${#install[@]} installed, ${#remove[@]} removed."
 
+# USB drives mount under /run/media, which neither browser's sandbox includes.
+[doc('Let Chrome and Firefox open files on USB drives, read-only. Idempotent.')]
+flatpak-overrides:
+    flatpak override --user --filesystem=/run/media:ro com.google.Chrome
+    flatpak override --user --filesystem=/run/media:ro org.mozilla.firefox
+    @echo
+    @echo "Apply:  quit both browsers completely, then reopen them"
+
 # The only way to see the real login screen without rebooting: it runs nested in a window,
 # against a fake greetd, so log in as user/password and the sum it asks is 9.
 # Software rendering is required, because the nested compositor otherwise never draws a frame;
