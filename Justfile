@@ -231,7 +231,7 @@ check-shell-config:
     PY
 
 # Apps live outside the image, so a reinstall would lose every one you added by hand.
-[doc('Reconcile installed flatpaks with flatpaks.list. Idempotent.')]
+[doc('Reconcile installed flatpaks with flatpaks.list, and their codec packs. Idempotent.')]
 install-flatpaks:
     #!/usr/bin/bash
     set -euo pipefail
@@ -292,15 +292,38 @@ install-flatpaks:
         fi
     done
 
+    # Pruning any one runtime also uninstalls the codec pack every runtime on the same base shares.
+    branches=$(for runtime in $(flatpak list --system --app --columns=runtime | sort -u); do
+        flatpak info --system --show-metadata "$runtime" | awk '
+            /^\[/ { inside = ($0 == "[Extension org.freedesktop.Platform.codecs-extra]") }
+            inside && sub(/^version *= */, "")'
+    done | sort -u)
+    codecs=()
+    for branch in $branches; do
+        ref="org.freedesktop.Platform.codecs-extra//$branch"
+        if flatpak info --system "$ref" >/dev/null 2>&1; then
+            echo "  ok        $ref"
+        else
+            echo "  restore   $ref"
+            codecs+=("$ref")
+        fi
+    done
+
     if [[ ${#install[@]} -gt 0 ]]; then
         echo
         sudo flatpak install --system --noninteractive flathub "${install[@]}"
     fi
 
+    # Unpinned, so a pack still goes once no runtime names it.
+    if [[ ${#codecs[@]} -gt 0 ]]; then
+        echo
+        sudo flatpak install --system --noninteractive --no-auto-pin flathub "${codecs[@]}"
+    fi
+
     if [[ ${#remove[@]} -gt 0 ]]; then
         echo
         sudo flatpak uninstall --system --noninteractive "${remove[@]}"
-        echo "Their runtimes stay behind until:  sudo flatpak uninstall --system --unused"
+        echo "Their runtimes stay behind until:  sudo flatpak uninstall --system --unused && just install-flatpaks"
     fi
 
     # Read again, because the steps above changed what is installed.

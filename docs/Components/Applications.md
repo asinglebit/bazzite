@@ -15,7 +15,7 @@ root writes them down and `just install-flatpaks` reconciles. Two sections:
 - **`[remove]`** — Bazzite defaults this desktop does without, which would otherwise come
   back on a reinstall. Uninstalling leaves `~/.var/app` alone, so their settings survive.
 
-Those two sections are the only things the recipe acts on. An app installed by hand and
+Those two sections are the only apps the recipe acts on. An app installed by hand and
 written down nowhere is *reported*, never removed — unlike a dangling symlink, a flatpak
 can be holding the only copy of its own data.
 
@@ -33,6 +33,24 @@ alone, missing its own styles, scripts and images.
 exFAT and NTFS drives work for files. Bazzite's "Unsupported filesystem" pop-up only means
 games misbehave on them, so `40-branding.sh` disables it rather than have it fire on every
 plug-in.
+
+## Video codecs
+
+Flathub's runtimes leave out H.264 and HEVC. The `org.freedesktop.Platform.codecs-extra`
+extension puts them back, and one copy of it serves every runtime built on the same
+freedesktop release, GNOME and KDE ones included. Haruna, the default player, and Firefox
+both decode through it.
+
+Flatpak uninstalls that copy along with *any* runtime that names it, without checking
+whether the others still do. So a prune that retires one old runtime takes the pack from
+all the rest, and Haruna answers every H.264 file with "No video track detected".
+`ujust clean-system` prunes, and so does `bazzite-flatpak-manager`, which reruns at boot
+whenever an update changes it.
+
+`just install-flatpaks` reads which pack each installed app's runtime asks for and puts back
+any that is missing, unpinned, so it still goes once nothing needs it. `verify.sh` fails
+while one is missing. A plain `flatpak update` restores it too, as a side effect of
+updating everything else.
 
 ## The terminal
 

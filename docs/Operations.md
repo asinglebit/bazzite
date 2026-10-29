@@ -50,7 +50,7 @@ the restart the first time.
 | `just update-check` | Is there anything new? Metadata only. |
 | `just update` | Stage the newest published image; applies at the next reboot. |
 | `just status` | `bootc`, `rpm-ostree` and `ostree` status together. |
-| `just install-flatpaks` | Reconcile apps against `flatpaks.list`. |
+| `just install-flatpaks` | Reconcile apps against `flatpaks.list`, and their codec packs. |
 | `./verify.sh` | Post-boot checks against the running session. |
 
 See [[Cadence]] for what each of those actually moves.

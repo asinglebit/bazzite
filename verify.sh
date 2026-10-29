@@ -319,6 +319,17 @@ done
 systemctl --user is-enabled --quiet ntfs-nag.service \
     && meh "Bazzite's NTFS/exFAT pop-up is enabled -- 40-branding.sh disables it from the next image on" \
     || ok "Bazzite's NTFS/exFAT pop-up disabled"
+# Pruning any one runtime also uninstalls the codec pack every runtime on the same base shares.
+codec_branches=$(for runtime in $(flatpak list --system --app --columns=runtime | sort -u); do
+    flatpak info --system --show-metadata "$runtime" 2>/dev/null | awk '
+        /^\[/ { inside = ($0 == "[Extension org.freedesktop.Platform.codecs-extra]") }
+        inside && sub(/^version *= */, "")'
+done | sort -u)
+for codec_branch in $codec_branches; do
+    flatpak info --system "org.freedesktop.Platform.codecs-extra//$codec_branch" >/dev/null 2>&1 \
+        && ok "flatpak codec pack $codec_branch installed (H.264 and HEVC)" \
+        || no "flatpak codec pack $codec_branch MISSING -- its flatpaks cannot play H.264 or HEVC; run 'just install-flatpaks'"
+done
 
 # Downloaded rather than packaged, and a silent fallback to Noto is easy to miss.
 fc-list -q 'Hack Nerd Font Mono' && ok "Hack Nerd Font Mono installed" \

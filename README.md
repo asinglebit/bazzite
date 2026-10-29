@@ -178,9 +178,14 @@ first boot and is ignored here. `[remove]` is the other direction: Bazzite defau
 does without, which would otherwise come back on a reinstall. Uninstalling leaves `~/.var/app`
 alone, so their settings survive.
 
-Those two sections are the only things it will ever act on. An app installed by hand and written
+Those two sections are the only apps it will ever act on. An app installed by hand and written
 down nowhere is reported rather than removed, so you can add it to a section or deal with it
 yourself.
+
+It also puts back the codec pack that gives flatpaks H.264 and HEVC. One copy serves every runtime
+on the same freedesktop base, and flatpak uninstalls it along with any one of them, so a prune such
+as `ujust clean-system` can leave Haruna saying "No video track detected". `verify.sh` fails while
+a pack is missing.
 
 `flatpak-overrides` lets both browsers read USB drives, which mount under `/run/media`, outside
 their sandbox. Without it a typed path or a dragged-in file is not found, and a double-click hands

@@ -82,6 +82,18 @@ proves it: point the same policy at the wrong key and confirm the pull is refuse
 If it copies instead of failing, updates are going through unverified. See
 [[Build and release]].
 
+## Videos say "No video track detected"
+
+That is Haruna with no H.264 or HEVC decoder, because a prune — `ujust clean-system`, or
+Bazzite's flatpak manager after an update — took the codec pack its runtime shares with
+others.
+
+```bash
+just install-flatpaks    # puts back every pack an installed app's runtime asks for
+```
+
+Then reopen the player, since it picked its decoders when it started. See [[Applications]].
+
 ## Something is subtly wrong and you cannot name it
 
 Run `./verify.sh` first. It exists for exactly this: 100-plus assertions about a running
